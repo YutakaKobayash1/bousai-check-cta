@@ -998,3 +998,166 @@ final class Bousai_Check_CTA {
 				<?php endif; ?>
 
 				<div class="bcc-pc-card__body">
+					<?php if ( $pc_title ) : ?>
+						<p class="bcc-pc-card__title"><?php echo esc_html( $pc_title ); ?></p>
+					<?php endif; ?>
+
+					<?php if ( $pc_text ) : ?>
+						<p class="bcc-pc-card__text"><?php echo esc_html( $pc_text ); ?></p>
+					<?php endif; ?>
+
+					<span class="bcc-pc-card__button">
+						<span class="bcc-pc-card__button-label"><?php echo esc_html( $pc_button ? $pc_button : 'チェックする' ); ?></span>
+						<span class="bcc-pc-card__button-arrow" aria-hidden="true">→</span>
+					</span>
+				</div>
+			</a>
+
+			<a class="bcc-pc-tab bcc-track"
+				href="<?php echo esc_url( $url ); ?>"
+				data-bcc-location="pc_tab"
+				aria-label="<?php echo esc_attr( $options['pc_tab_text'] ? $options['pc_tab_text'] : '防災チェック' ); ?>">
+				<span class="bcc-pc-tab__text"><?php echo esc_html( $options['pc_tab_text'] ? $options['pc_tab_text'] : '防災チェック' ); ?></span>
+				<span class="bcc-pc-tab__arrow" aria-hidden="true">→</span>
+			</a>
+
+			<?php
+			echo $this->anchor(
+				'bcc-floating bcc-floating--sp',
+				'sp_fixed',
+				$options['sp_banner_text'] ? $options['sp_banner_text'] : 'わが家の防災をチェック'
+			); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			?>
+			<button
+				type="button"
+				class="bcc-sp-close"
+				data-bcc-sp-close
+				aria-label="防災チェックのバナーを閉じる"
+				title="閉じる"
+			>×</button>
+		</div>
+		<?php
+	}
+
+	public function shortcode_top_card() {
+		if ( ! $this->should_render_global() ) {
+			return '';
+		}
+
+		$url = $this->target_url();
+
+		ob_start();
+		?>
+		<section class="bcc-top-card" aria-label="防災チェック">
+			<div class="bcc-top-card__icon" aria-hidden="true">✓</div>
+			<div class="bcc-top-card__body">
+				<p class="bcc-top-card__eyebrow">わが家の防災チェック</p>
+				<h2 class="bcc-top-card__title">わが家の備え、足りていますか？</h2>
+				<p class="bcc-top-card__text">家族構成や暮らしの状況に合わせて、今の備えをまとめて確認できます。</p>
+			</div>
+			<a class="bcc-top-card__button bcc-track" data-bcc-location="top_card" href="<?php echo esc_url( $url ); ?>">
+				防災チェックをはじめる <span aria-hidden="true">→</span>
+			</a>
+		</section>
+		<?php
+		return ob_get_clean();
+	}
+
+	private function context_message( $post_id ) {
+		$title = get_the_title( $post_id );
+		$terms = wp_get_post_terms( $post_id, array( 'category', 'post_tag' ), array( 'fields' => 'names' ) );
+		$haystack = $title . ' ' . ( is_wp_error( $terms ) ? '' : implode( ' ', $terms ) );
+
+		$patterns = array(
+			array(
+				'keys' => array( '備蓄', '非常食', '保存水', '飲料水', 'ローリングストック' ),
+				'text' => 'この記事を読んで、自宅の備蓄が足りているか気になった方へ。家族構成に合わせて必要な備えをまとめて確認できます。',
+			),
+			array(
+				'keys' => array( 'トイレ', '衛生', '断水', '携帯トイレ' ),
+				'text' => 'トイレや衛生の備えは、家族の人数や状況によって必要量が変わります。わが家に必要な備えをまとめて確認してみませんか。',
+			),
+			array(
+				'keys' => array( '停電', '電源', '充電', 'モバイルバッテリー', 'ランタン', '照明' ),
+				'text' => '停電への備えは、電源だけでなく照明や情報収集手段も含めて考えることが大切です。わが家の準備状況をまとめて確認できます。',
+			),
+			array(
+				'keys' => array( '家具', '耐震', '感震ブレーカー', '地震', '転倒' ),
+				'text' => '住まいの安全対策は、家具固定や停電・火災への備えまでまとめて確認すると抜け漏れを減らせます。わが家の備えをチェックしてみましょう。',
+			),
+			array(
+				'keys' => array( '避難', 'ハザード', '洪水', '大雨', '土砂', '津波', '台風' ),
+				'text' => '避難の準備は、持ち出し品だけでなく家族構成や住まいの状況も含めて考える必要があります。わが家の備えをまとめて確認できます。',
+			),
+		);
+
+		foreach ( $patterns as $pattern ) {
+			foreach ( $pattern['keys'] as $key ) {
+				if ( false !== mb_strpos( $haystack, $key ) ) {
+					return $pattern['text'];
+				}
+			}
+		}
+
+		return 'この記事をきっかけに、わが家の防災をまとめて見直してみませんか。家族構成や暮らしの状況に合わせて、今の備えを確認できます。';
+	}
+
+	private function article_cta_html( $post_id ) {
+		$url = $this->target_url();
+		if ( ! $url ) {
+			return '';
+		}
+
+		$message = $this->context_message( $post_id );
+
+		ob_start();
+		?>
+		<aside class="bcc-article-cta" aria-label="わが家の防災チェック">
+			<div class="bcc-article-cta__icon" aria-hidden="true">✓</div>
+			<div class="bcc-article-cta__content">
+				<p class="bcc-article-cta__title">わが家の防災、まとめて確認してみませんか？</p>
+				<p class="bcc-article-cta__text"><?php echo esc_html( $message ); ?></p>
+				<a class="bcc-article-cta__button bcc-track" data-bcc-location="article_bottom" href="<?php echo esc_url( $url ); ?>">
+					わが家の防災チェック <span aria-hidden="true">→</span>
+				</a>
+			</div>
+		</aside>
+		<?php
+		return ob_get_clean();
+	}
+
+	public function shortcode_article_cta() {
+		if ( ! $this->should_render_global() || ! is_singular( 'post' ) ) {
+			return '';
+		}
+		return $this->article_cta_html( get_the_ID() );
+	}
+
+	public function append_article_cta( $content ) {
+		$options = $this->options();
+
+		if ( empty( $options['article_auto_enabled'] ) ) {
+			return $content;
+		}
+
+		if (
+			! $this->should_render_global()
+			|| ! is_singular( 'post' )
+			|| ! in_the_loop()
+			|| ! is_main_query()
+		) {
+			return $content;
+		}
+
+		$post_id = get_the_ID();
+
+		if ( ! $post_id || $this->is_excluded_category( $post_id ) ) {
+			return $content;
+		}
+
+		return $content . $this->article_cta_html( $post_id );
+	}
+}
+
+register_activation_hook( __FILE__, array( 'Bousai_Check_CTA', 'activate' ) );
+Bousai_Check_CTA::instance();
