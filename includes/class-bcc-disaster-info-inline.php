@@ -42,11 +42,29 @@ final class Bousai_Check_CTA_Disaster_Info_Inline {
     }
 
     /**
+     * Public display is an explicit human gate. While disabled, administrators
+     * can still inspect the surface with ?bousai_cta_preview=1.
+     */
+    private static function is_surface_visible() {
+        $saved = get_option( Bousai_Check_CTA::OPTION_KEY, array() );
+        $options = wp_parse_args( is_array( $saved ) ? $saved : array(), Bousai_Check_CTA::defaults() );
+
+        if ( ! empty( $options['disaster_info_inline_enabled'] ) ) {
+            return true;
+        }
+
+        return is_user_logged_in()
+            && current_user_can( 'manage_options' )
+            && isset( $_GET['bousai_cta_preview'] )
+            && '1' === sanitize_text_field( wp_unslash( $_GET['bousai_cta_preview'] ) );
+    }
+
+    /**
      * Inject immediately after the complete "current warnings / disaster info" section.
      * Existing downstream blocks are not reordered.
      */
     public static function inject_cta( $output, $tag, $attr, $m ) {
-        if ( self::SHORTCODE !== $tag || ! self::is_target_request() ) {
+        if ( self::SHORTCODE !== $tag || ! self::is_target_request() || ! self::is_surface_visible() ) {
             return $output;
         }
 
@@ -69,12 +87,12 @@ final class Bousai_Check_CTA_Disaster_Info_Inline {
      * Add scoped CSS/JS only on target routes.
      */
     public static function enqueue_assets() {
-        if ( ! self::is_target_request() ) {
+        if ( ! self::is_target_request() || ! self::is_surface_visible() ) {
             return;
         }
 
         $main_plugin_file = dirname( __DIR__ ) . '/bousai-check-cta.php';
-        $version = class_exists( 'Bousai_Check_CTA' ) ? Bousai_Check_CTA::VERSION : '1.4.0-rc1';
+        $version = class_exists( 'Bousai_Check_CTA' ) ? Bousai_Check_CTA::VERSION : '1.4.0-rc2';
 
         // The existing core tracker normally is not enqueued under /disaster-info/
         // because floating CTA rendering is intentionally excluded there. Reuse that
