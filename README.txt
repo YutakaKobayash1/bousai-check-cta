@@ -1,4 +1,4 @@
-防災のまとめ 防災チェック導線 v1.4.0-rc1
+防災のまとめ 防災チェック導線 v1.4.0-rc2
 
 【目的】
 防災チェック固定ページへの4つの導線を、Cocoon本体を直接編集せずに追加します。
@@ -168,7 +168,7 @@ gtagがなくdataLayerが存在する場合はdataLayerへpushします。
 - 右余白が220px未満の時だけ小型タブへ切替
 - 「大型カード固定」は従来どおり設定幅を優先
 
-【v1.4.0-rc1 追加（DISASTER-CTA-01）】
+【v1.4.0-rc2 追加（DISASTER-CTA-01）】
 - 最新災害情報の全国＋47都道府県ページに本文内CTA surface `disaster_info_inline` を追加
 - 「現在発表されている警報・災害情報」セクション終了直後へ挿入
 - 警報0件でも同じ位置に表示
@@ -178,3 +178,4 @@ gtagがなくdataLayerが存在する場合はdataLayerへpushします。
 - clickは既存 `bousai_check_cta_click` trackerを再利用
 - 50%以上visibleでimpressionを1 pageview 1回送信
 - 災害情報renderer / Content Bridge / Social Growth / Readiness本体には変更なし
+- 最新災害情報本文内CTAは初期OFF。設定画面の専用チェックで公開し、OFF中は管理者プレビューURLのみ表示
