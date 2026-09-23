@@ -7,7 +7,7 @@
 - 公開スイッチ: 初期OFF。管理者は `?bousai_cta_preview=1` で確認可能。公開ONは人間承認後のみ
 - surface: `disaster_info_inline`
 - 対象: 全国＋47都道府県の48ページ
-- 位置: 「現在発表されている警報・災害情報」セクション**終了直後**
+- 位置: 「現在発表されている警報・災害情報」セクションの**末尾（閉じタグ直前）**。見た目では現在情報の直後・SNS共有ブロックの直上
 - 既存の後続ブロック（「この状況で確認しておきたいこと」「都道府県の公式防災情報」「最近発表された…」等）は並び替えない
 - 警報0件でも表示
 - 遷移先: `/check/`
@@ -42,7 +42,7 @@ Phase 1で変更しないもの:
 - 既存の災害情報本文・公的情報ロジック
 
 ## 実装方式
-`do_shortcode_tag` の `bousai_official_info` 出力に対し、既存の災害情報post-processが完了した後のlate priorityで、見出し `現在発表されている警報・災害情報` を含む `<section>` の対応する閉じタグ直後へCTAを挿入する。
+`do_shortcode_tag` の `bousai_official_info` 出力に対し、見出し `現在発表されている警報・災害情報` を含む `<section>` の対応する閉じタグ直前へCTAを挿入する。これにより、優先表示MVPがsection自体を後から移動してもCTAが一緒に移動し、SNS共有pluginがsection直後へ共有ブロックを戻しても表示順は「現在情報 → CTA → SNS共有」となる。
 
 - 同じHTMLに `data-bcc-surface="disaster_info_inline"` が既にあれば再挿入しない
 - 見出し/section構造を解決できなければfail closed（CTAを出さず災害情報HTMLをそのまま返す）
