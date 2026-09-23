@@ -60,10 +60,11 @@ final class Bousai_Check_CTA_Disaster_Info_Inline {
     }
 
     /**
-     * Inject at the visual end of the "current warnings / disaster info" section,
-     * immediately before its closing </section>. This keeps the CTA attached to the
-     * current-information block when other scripts reorder that section, and leaves
-     * the SNS share block immediately after it. Existing downstream blocks are not reordered.
+     * Seed the CTA at the end of the "current warnings / disaster info" section,
+     * immediately before its closing </section>. Client-side accordion initialization can
+     * subsequently move child nodes within that section, so the inline JS also enforces
+     * the CTA as the section's final child. The SNS share block remains the immediate next
+     * sibling of the section. Existing downstream blocks are not reordered.
      */
     public static function inject_cta( $output, $tag, $attr, $m ) {
         if ( self::SHORTCODE !== $tag || ! self::is_target_request() || ! self::is_surface_visible() ) {
@@ -94,7 +95,7 @@ final class Bousai_Check_CTA_Disaster_Info_Inline {
         }
 
         $main_plugin_file = dirname( __DIR__ ) . '/bousai-check-cta.php';
-        $version = class_exists( 'Bousai_Check_CTA' ) ? Bousai_Check_CTA::VERSION : '1.4.0-rc3';
+        $version = class_exists( 'Bousai_Check_CTA' ) ? Bousai_Check_CTA::VERSION : '1.4.0-rc4';
 
         // The existing core tracker normally is not enqueued under /disaster-info/
         // because floating CTA rendering is intentionally excluded there. Reuse that
