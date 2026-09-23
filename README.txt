@@ -1,4 +1,4 @@
-防災のまとめ 防災チェック導線 v1.4.0-rc3
+防災のまとめ 防災チェック導線 v1.4.0-rc4
 
 【目的】
 防災チェック固定ページへの4つの導線を、Cocoon本体を直接編集せずに追加します。
@@ -181,3 +181,8 @@ gtagがなくdataLayerが存在する場合はdataLayerへpushします。
 - 最新災害情報本文内CTAは初期OFF。設定画面の専用チェックで公開し、OFF中は管理者プレビューURLのみ表示
 
 - v1.4.0-rc3: disaster_info_inline の配置を現在情報sectionの末尾へ変更。SNS共有導線が現在情報直後へ再配置される本番DOMと競合せず、見た目の順序を「現在情報 → CTA → SNS共有」に固定。
+
+【v1.4.0-rc4 修正（DISASTER-CTA-01）】
+- 本番DOMではアコーディオン初期化が現在情報section内部の子要素をCTAより後ろへ移動することがあるため、専用JSでCTAを現在情報sectionの最終子要素に固定。
+- SNS共有blockは現在情報sectionの直後に置く既存仕様を変更せず、最終表示順を「現在情報の全項目 → CTA → SNS共有」に固定。
+- SNS共有snippet、災害情報renderer、Content Bridge、GA4 Journeyは変更しない。
