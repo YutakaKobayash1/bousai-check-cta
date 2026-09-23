@@ -4,6 +4,7 @@
 全国 `/disaster-info/` と47都道府県 `/disaster-info/{prefecture}/` の計48ページで、重要な災害情報の確認後に `/check/` へ自然に遷移できる本文内CTAを提供する。
 
 ## Phase 1 LOCK
+- 公開スイッチ: 初期OFF。管理者は `?bousai_cta_preview=1` で確認可能。公開ONは人間承認後のみ
 - surface: `disaster_info_inline`
 - 対象: 全国＋47都道府県の48ページ
 - 位置: 「現在発表されている警報・災害情報」セクション**終了直後**
