@@ -2,7 +2,7 @@
 /**
  * Plugin Name: 防災のまとめ 防災チェック導線
  * Description: 「防災チェック」固定ページへのPC追尾CTA、SP下部固定CTA、TOPカード、記事末CTAを提供します。
- * Version: 1.3.6
+ * Version: 1.4.0-rc1
  * Author: 防災のまとめ
  * Text Domain: bousai-check-cta
  */
@@ -12,7 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 final class Bousai_Check_CTA {
-	const VERSION = '1.3.6';
+	const VERSION = '1.4.0-rc1';
 	const OPTION_KEY = 'bousai_check_cta_options';
 
 	private static $instance = null;
