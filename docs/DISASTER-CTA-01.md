@@ -98,3 +98,8 @@ CTA固有のperformanceのみ追加計測する。
 - baseline SHA記録
 - Control Issue作成
 - main直書き禁止、feature branch→PR→CI
+
+## RC4 placement guard
+- Server-sideではCTAを現在情報sectionの閉じタグ直前にseedする。
+- 本番のアコーディオン初期化がsection内の子要素を後段で移動するため、`bcc-disaster-info-inline.js` がCTAを常に当該sectionの最終子要素へ戻す。
+- SNS共有は既存snippetの仕様どおり現在情報sectionの直後に置かれるため、最終表示順は `current full content -> CTA -> SNS share` になる。
