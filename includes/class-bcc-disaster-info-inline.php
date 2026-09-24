@@ -2,7 +2,7 @@
 /**
  * DISASTER-CTA-01: latest-disaster-info inline readiness CTA.
  *
- * RC6 architecture:
+ * v1.4.0 architecture:
  * - Layout owner creates a stable root-level slot:
  *   [data-bousai-slot="post-current-actions"]
  * - This component renders an inert <template> in wp_footer.
@@ -73,7 +73,7 @@ final class Bousai_Check_CTA_Disaster_Info_Inline {
         }
 
         $main_plugin_file = dirname( __DIR__ ) . '/bousai-check-cta.php';
-        $version = class_exists( 'Bousai_Check_CTA' ) ? Bousai_Check_CTA::VERSION : '1.4.0-rc6';
+        $version = class_exists( 'Bousai_Check_CTA' ) ? Bousai_Check_CTA::VERSION : '1.4.0';
 
         /*
          * Reuse the existing core click tracker. /disaster-info/ remains excluded
@@ -107,7 +107,7 @@ final class Bousai_Check_CTA_Disaster_Info_Inline {
      * Render an inert template only.
      *
      * The template is intentionally outside .bousai-official-info and has no
-     * visual effect until the RC6 client script mounts its first element into the
+     * visual effect until the v1.4.0 client script mounts its first element into the
      * stable post-current-actions slot owned by the disaster-info layout.
      */
     public static function render_template() {
