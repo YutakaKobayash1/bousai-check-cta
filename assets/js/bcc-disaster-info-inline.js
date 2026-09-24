@@ -10,9 +10,8 @@
   var TEMPLATE_ID = 'bcc-disaster-info-inline-template';
 
   var root = document.querySelector(ROOT_SELECTOR);
-  var template = document.getElementById(TEMPLATE_ID);
 
-  if (!root || !template || !template.content) return;
+  if (!root) return;
 
   var impressionSeen = new WeakSet();
   var impressionObserver = null;
@@ -90,7 +89,9 @@
    */
   function mount() {
     var slot = root.querySelector(SLOT_SELECTOR);
-    if (!slot) return false;
+    var template = document.getElementById(TEMPLATE_ID);
+
+    if (!slot || !template || !template.content) return false;
 
     var cta = slot.querySelector(CTA_SELECTOR);
 
@@ -117,17 +118,21 @@
   }
 
   /*
-   * The layout owner creates the slot during its own DOMContentLoaded reorder.
-   * Wait only for that slot to appear, mount once, then permanently disconnect.
+   * The slot and the inert template are owned by different wp_footer/DOMContentLoaded
+   * writers and can appear in either order. Re-resolve both on every mount attempt.
+   * Observe initial DOM assembly only until both exist, then mount once and disconnect.
    */
   if ('MutationObserver' in window) {
-    var waitForSlot = new MutationObserver(function () {
+    var waitForMountInputs = new MutationObserver(function () {
       if (mount()) {
-        waitForSlot.disconnect();
+        waitForMountInputs.disconnect();
       }
     });
 
-    waitForSlot.observe(root, { childList: true });
+    waitForMountInputs.observe(document.body || document.documentElement, {
+      childList: true,
+      subtree: true
+    });
   }
 
   window.addEventListener('pageshow', function () {
