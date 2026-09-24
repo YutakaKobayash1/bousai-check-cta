@@ -169,4 +169,4 @@ function runScripts(dom, runCta) {
   );
 })();
 
-process.stdout.write('All RC6 DOM integration tests passed.\n');
+process.stdout.write('All v1.4.0 DOM integration tests passed.\n');
