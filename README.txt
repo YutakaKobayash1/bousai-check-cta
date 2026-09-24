@@ -193,6 +193,12 @@ gtagがなくdataLayerが存在する場合はdataLayerへpushします。
 - latest-disaster-info layout ownerが root-level stable slot `data-bousai-slot="post-current-actions"` を current section直後に所有する契約へ変更。
 - CTAはfooterのinert templateからslot先頭へ自分自身だけをmountする。current sectionの子要素を検索・移動しない。
 - CTAのMutationObserverはslot出現待ちだけに使い、mount成功後にdisconnectする。setTimeoutによる位置競合は持たない。
-- SNS共有v1.4.2はslotあり→slot末尾、slotなし→従来current直後fallback。
+- SNS共有v1.4.5はslotあり→slot末尾、slotなし→従来current直後fallback。
 - 最終順序：現在情報の全項目 → CTA → SNS共有 → 既存後続コンテンツ。
-- integration/ にDOM contract、SEO P0 layout patch、SNS共有v1.4.2を格納。
+- integration/ にDOM contract、SEO P0 layout patch、SNS共有v1.4.5を格納。
+
+
+【SNS baseline correction】
+- 本番正本は「最新災害情報｜SNSシェア導線 v1.4.4」。
+- v1.4.2案は破棄。
+- v1.4.5はv1.4.4をfresh baselineとして、見た目・5ボタン・共有文面・canonical優先・コピー動作を維持し、配置ロジックだけslot-awareに変更。
