@@ -103,3 +103,23 @@ CTA固有のperformanceのみ追加計測する。
 - Server-sideではCTAを現在情報sectionの閉じタグ直前にseedする。
 - 本番のアコーディオン初期化がsection内の子要素を後段で移動するため、`bcc-disaster-info-inline.js` がCTAを常に当該sectionの最終子要素へ戻す。
 - SNS共有は既存snippetの仕様どおり現在情報sectionの直後に置かれるため、最終表示順は `current full content -> CTA -> SNS share` になる。
+
+
+## RC5 root architecture
+
+RC2〜RC4のsection内挿入/placement guard方式は廃止する。
+
+正式な配置契約:
+
+1. latest-disaster-info layout owner が current section直後に
+   `[data-bousai-slot="post-current-actions"]` を direct child として作成・配置する。
+2. layout reorderは current と slot を一組として移動し、その後にprimary/basic/newsを並べる。
+3. CTA pluginはfooter templateからCTAだけをslot先頭へmountする。
+4. SNS共有v1.4.2はslot末尾へmountする。slotがなければ従来配置へfallback。
+5. CTA/SNSはcurrent sectionやroot-level page orderを所有しない。
+
+最終DOM invariant:
+`current full content -> post-current-actions[CTA, SNS] -> downstream content`
+
+CTA公開スイッチOFF時:
+`current full content -> post-current-actions[SNS] -> downstream content`
