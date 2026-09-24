@@ -1,4 +1,4 @@
-防災のまとめ 防災チェック導線 v1.3.6
+防災のまとめ 防災チェック導線 v1.4.0
 
 【目的】
 防災チェック固定ページへの4つの導線を、Cocoon本体を直接編集せずに追加します。
@@ -167,3 +167,48 @@ gtagがなくdataLayerが存在する場合はdataLayerへpushします。
 - 大型カードの自動縮小下限を220pxに設定
 - 右余白が220px未満の時だけ小型タブへ切替
 - 「大型カード固定」は従来どおり設定幅を優先
+
+【v1.4.0-rc3 追加（DISASTER-CTA-01）】
+- 最新災害情報の全国＋47都道府県ページに本文内CTA surface `disaster_info_inline` を追加
+- 「現在発表されている警報・災害情報」セクション終了直後へ挿入
+- 警報0件でも同じ位置に表示
+- `/check/` へ同一タブで遷移
+- 既存の後続コンテンツ順序は変更しない
+- GA4 impression `bousai_check_cta_impression` / location `disaster_info_inline` を追加
+- clickは既存 `bousai_check_cta_click` trackerを再利用
+- 50%以上visibleでimpressionを1 pageview 1回送信
+- 災害情報renderer / Content Bridge / Social Growth / Readiness本体には変更なし
+- 最新災害情報本文内CTAは初期OFF。設定画面の専用チェックで公開し、OFF中は管理者プレビューURLのみ表示
+
+- v1.4.0-rc3: disaster_info_inline の配置を現在情報sectionの末尾へ変更。SNS共有導線が現在情報直後へ再配置される本番DOMと競合せず、見た目の順序を「現在情報 → CTA → SNS共有」に固定。
+
+【v1.4.0-rc4 修正（DISASTER-CTA-01）】
+- 本番DOMではアコーディオン初期化が現在情報section内部の子要素をCTAより後ろへ移動することがあるため、専用JSでCTAを現在情報sectionの最終子要素に固定。
+- SNS共有blockは現在情報sectionの直後に置く既存仕様を変更せず、最終表示順を「現在情報の全項目 → CTA → SNS共有」に固定。
+- SNS共有snippet、災害情報renderer、Content Bridge、GA4 Journeyは変更しない。
+
+
+【v1.4.0-rc5 根本修正（DISASTER-CTA-01）】
+- RC2〜RC4の「CTA pluginが災害情報DOMの最終位置を直接制御する」方式を廃止。
+- latest-disaster-info layout ownerが root-level stable slot `data-bousai-slot="post-current-actions"` を current section直後に所有する契約へ変更。
+- CTAはfooterのinert templateからslot先頭へ自分自身だけをmountする。current sectionの子要素を検索・移動しない。
+- CTAのMutationObserverはslot出現待ちだけに使い、mount成功後にdisconnectする。setTimeoutによる位置競合は持たない。
+- SNS共有v1.4.5はslotあり→slot末尾、slotなし→従来current直後fallback。
+- 最終順序：現在情報の全項目 → CTA → SNS共有 → 既存後続コンテンツ。
+- integration/ にDOM contract、SEO P0 layout patch、SNS共有v1.4.5を格納。
+
+
+【SNS baseline correction】
+- 本番正本は「最新災害情報｜SNSシェア導線 v1.4.4」。
+- v1.4.2案は破棄。
+- v1.4.5はv1.4.4をfresh baselineとして、見た目・5ボタン・共有文面・canonical優先・コピー動作を維持し、配置ロジックだけslot-awareに変更。
+
+
+【v1.4.0 正式版（DISASTER-CTA-01）】
+- RC6で確認した post-current-actions stable slot 方式を正式版へ昇格。
+- 管理者プレビューで「現在情報の全項目 → CTA → SNS共有 → 後続コンテンツ」の配置を確認。
+- /check/ への同一タブ遷移を確認。
+- RC6で修正した「CTA script実行後にfooter templateが到着する場合のmount race」対策を維持。
+- PCの「わが家の防災チェックを始める」ボタンを最大560px・中央寄せへ調整し、横に長すぎる見え方を改善。
+- SPでは従来どおりボタンを横幅100%で表示。
+- 最新災害情報本文内CTAの公開スイッチは引き続き明示的な管理者操作でONにする。

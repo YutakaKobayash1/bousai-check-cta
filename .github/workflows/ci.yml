@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: PHP syntax
+        run: |
+          php -l bousai-check-cta.php
+          php -l includes/class-bcc-disaster-info-inline.php
+
+      - name: v1.4.0 slot-contract regression
+        run: php tests/test-slot-contract.php
+
+      - name: JavaScript syntax
+        run: |
+          node --check assets/js/bcc.js
+          node --check assets/js/bcc-disaster-info-inline.js
+          node --check tests/test-slot-dom.js
+
+      - name: v1.4.0 DOM integration
+        run: |
+          npm install --no-save --no-package-lock jsdom@24.1.3
+          node tests/test-slot-dom.js
+
+      - name: Build v1.4.0 plugin ZIP
+        run: |
+          rm -rf dist
+          mkdir -p dist/bousai-check-cta
+          cp bousai-check-cta.php dist/bousai-check-cta/
+          cp README.txt dist/bousai-check-cta/
+          cp -R assets dist/bousai-check-cta/
+          cp -R includes dist/bousai-check-cta/
+          cat > dist/bousai-check-cta/BUILD-MANIFEST.txt <<EOF
+          Bousai Check CTA v1.4.0
+          Source commit: $GITHUB_SHA
+          CI run: $GITHUB_RUN_ID
+          Architecture: post-current-actions stable slot contract
+          Required coordinated preview dependencies:
+          - latest-disaster-info layout owner post-current-actions slot patch
+          - SNS Share v1.4.5 slot-aware placement
+          EOF
+          (
+            cd dist
+            zip -qr bousai-check-cta-1.4.0.zip bousai-check-cta
+          )
+          sha256sum dist/bousai-check-cta-1.4.0.zip
+
+      - name: Upload v1.4.0 plugin ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: bousai-check-cta-1.4.0
+          path: dist/bousai-check-cta-1.4.0.zip
+          if-no-files-found: error
+          retention-days: 30

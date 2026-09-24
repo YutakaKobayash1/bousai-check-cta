@@ -2,7 +2,7 @@
 /**
  * Plugin Name: 防災のまとめ 防災チェック導線
  * Description: 「防災チェック」固定ページへのPC追尾CTA、SP下部固定CTA、TOPカード、記事末CTAを提供します。
- * Version: 1.3.6
+ * Version: 1.4.0
  * Author: 防災のまとめ
  * Text Domain: bousai-check-cta
  */
@@ -12,7 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 final class Bousai_Check_CTA {
-	const VERSION = '1.3.6';
+	const VERSION = '1.4.0';
 	const OPTION_KEY = 'bousai_check_cta_options';
 
 	private static $instance = null;
@@ -48,6 +48,7 @@ final class Bousai_Check_CTA {
 		return array(
 			'target_page_id'          => 0,
 			'floating_enabled'        => 1,
+			'disaster_info_inline_enabled' => 0,
 			'article_auto_enabled'    => 0,
 			'preview_mode'            => 1,
 			'scroll_threshold'        => 25,
@@ -351,6 +352,7 @@ final class Bousai_Check_CTA {
 
 		$output['target_page_id'] = isset( $input['target_page_id'] ) ? absint( $input['target_page_id'] ) : 0;
 		$output['floating_enabled'] = ! empty( $input['floating_enabled'] ) ? 1 : 0;
+		$output['disaster_info_inline_enabled'] = ! empty( $input['disaster_info_inline_enabled'] ) ? 1 : 0;
 		$output['article_auto_enabled'] = ! empty( $input['article_auto_enabled'] ) ? 1 : 0;
 		$output['preview_mode'] = ! empty( $input['preview_mode'] ) ? 1 : 0;
 
@@ -464,6 +466,7 @@ final class Bousai_Check_CTA {
 		);
 
 		$preview_url = add_query_arg( 'bousai_cta_preview', '1', home_url( '/' ) );
+		$disaster_preview_url = add_query_arg( 'bousai_cta_preview', '1', home_url( '/disaster-info/' ) );
 		?>
 		<div class="wrap">
 			<h1>防災チェック導線</h1>
@@ -495,6 +498,18 @@ final class Bousai_Check_CTA {
 								<input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[floating_enabled]" value="1" <?php checked( ! empty( $options['floating_enabled'] ) ); ?>>
 								PC右追尾／SP下部固定CTAを有効にする
 							</label>
+						</td>
+					</tr>
+
+					<tr>
+						<th scope="row">最新災害情報 本文内CTA</th>
+						<td>
+							<label>
+								<input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[disaster_info_inline_enabled]" value="1" <?php checked( ! empty( $options['disaster_info_inline_enabled'] ) ); ?>>
+								全国＋47都道府県の最新災害情報ページで本文内CTAを公開する
+							</label>
+							<p class="description">初期値はOFFです。OFFの間も管理者はプレビューURLで確認できます。</p>
+							<p><a class="button" href="<?php echo esc_url( $disaster_preview_url ); ?>" target="_blank" rel="noopener">全国ページで本文内CTAをプレビュー</a></p>
 						</td>
 					</tr>
 
@@ -1159,5 +1174,8 @@ final class Bousai_Check_CTA {
 	}
 }
 
+require_once __DIR__ . '/includes/class-bcc-disaster-info-inline.php';
+
 register_activation_hook( __FILE__, array( 'Bousai_Check_CTA', 'activate' ) );
 Bousai_Check_CTA::instance();
+Bousai_Check_CTA_Disaster_Info_Inline::register();
