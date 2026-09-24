@@ -27,8 +27,8 @@ jobs:
           php -l bousai-check-cta.php
           php -l includes/class-bcc-disaster-info-inline.php
 
-      - name: Insertion regression
-        run: php tests/test-insertion.php
+      - name: RC5 slot-contract regression
+        run: php tests/test-slot-contract.php
 
       - name: JavaScript syntax
         run: |
