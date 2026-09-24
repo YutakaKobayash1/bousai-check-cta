@@ -34,3 +34,34 @@ jobs:
         run: |
           node --check assets/js/bcc.js
           node --check assets/js/bcc-disaster-info-inline.js
+
+      - name: Build RC5 plugin ZIP
+        run: |
+          rm -rf dist
+          mkdir -p dist/bousai-check-cta
+          cp bousai-check-cta.php dist/bousai-check-cta/
+          cp README.txt dist/bousai-check-cta/
+          cp -R assets dist/bousai-check-cta/
+          cp -R includes dist/bousai-check-cta/
+          cat > dist/bousai-check-cta/BUILD-MANIFEST.txt <<EOF
+          Bousai Check CTA v1.4.0-rc5
+          Source commit: $GITHUB_SHA
+          CI run: $GITHUB_RUN_ID
+          Architecture: post-current-actions stable slot contract
+          Required coordinated preview dependencies:
+          - latest-disaster-info layout owner post-current-actions slot patch
+          - SNS Share v1.4.2 slot-aware placement
+          EOF
+          (
+            cd dist
+            zip -qr bousai-check-cta-1.4.0-rc5.zip bousai-check-cta
+          )
+          sha256sum dist/bousai-check-cta-1.4.0-rc5.zip
+
+      - name: Upload RC5 plugin ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: bousai-check-cta-1.4.0-rc5
+          path: dist/bousai-check-cta-1.4.0-rc5.zip
+          if-no-files-found: error
+          retention-days: 30
