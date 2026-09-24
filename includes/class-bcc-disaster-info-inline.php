@@ -2,8 +2,12 @@
 /**
  * DISASTER-CTA-01: latest-disaster-info inline readiness CTA.
  *
- * Integration target: existing bousai-check-cta plugin, baseline v1.3.6.
- * This file is intentionally not a standalone plugin.
+ * RC5 architecture:
+ * - Layout owner creates a stable root-level slot:
+ *   [data-bousai-slot="post-current-actions"]
+ * - This component renders an inert <template> in wp_footer.
+ * - Client-side code mounts only this CTA into that slot.
+ * - This component never reorders the current-information section or SNS share.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -12,15 +16,16 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 final class Bousai_Check_CTA_Disaster_Info_Inline {
     const SURFACE = 'disaster_info_inline';
-    const SHORTCODE = 'bousai_official_info';
-    const PRIORITY = 20000;
+    const SLOT = 'post-current-actions';
+    const TEMPLATE_ID = 'bcc-disaster-info-inline-template';
 
     /**
-     * Register hooks. Call once from the main plugin after existing setup.
+     * Register only asset/template hooks.
+     * No shortcode-output rewrite and no DOM ownership of disaster-info layout.
      */
     public static function register() {
-        add_filter( 'do_shortcode_tag', array( __CLASS__, 'inject_cta' ), self::PRIORITY, 4 );
         add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ), 30 );
+        add_action( 'wp_footer', array( __CLASS__, 'render_template' ), PHP_INT_MAX - 30 );
     }
 
     /**
@@ -43,7 +48,7 @@ final class Bousai_Check_CTA_Disaster_Info_Inline {
 
     /**
      * Public display is an explicit human gate. While disabled, administrators
-     * can still inspect the surface with ?bousai_cta_preview=1.
+     * can inspect the surface with ?bousai_cta_preview=1.
      */
     private static function is_surface_visible() {
         $saved = get_option( Bousai_Check_CTA::OPTION_KEY, array() );
@@ -60,33 +65,6 @@ final class Bousai_Check_CTA_Disaster_Info_Inline {
     }
 
     /**
-     * Seed the CTA at the end of the "current warnings / disaster info" section,
-     * immediately before its closing </section>. Client-side accordion initialization can
-     * subsequently move child nodes within that section, so the inline JS also enforces
-     * the CTA as the section's final child. The SNS share block remains the immediate next
-     * sibling of the section. Existing downstream blocks are not reordered.
-     */
-    public static function inject_cta( $output, $tag, $attr, $m ) {
-        if ( self::SHORTCODE !== $tag || ! self::is_target_request() || ! self::is_surface_visible() ) {
-            return $output;
-        }
-
-        if ( ! is_string( $output ) || '' === $output ) {
-            return $output;
-        }
-
-        if ( false !== strpos( $output, 'data-bcc-surface="' . self::SURFACE . '"' ) ) {
-            return $output;
-        }
-
-        return self::insert_before_heading_section_close(
-            $output,
-            '現在発表されている警報・災害情報',
-            self::render_cta()
-        );
-    }
-
-    /**
      * Add scoped CSS/JS only on target routes.
      */
     public static function enqueue_assets() {
@@ -95,12 +73,12 @@ final class Bousai_Check_CTA_Disaster_Info_Inline {
         }
 
         $main_plugin_file = dirname( __DIR__ ) . '/bousai-check-cta.php';
-        $version = class_exists( 'Bousai_Check_CTA' ) ? Bousai_Check_CTA::VERSION : '1.4.0-rc4';
+        $version = class_exists( 'Bousai_Check_CTA' ) ? Bousai_Check_CTA::VERSION : '1.4.0-rc5';
 
-        // The existing core tracker normally is not enqueued under /disaster-info/
-        // because floating CTA rendering is intentionally excluded there. Reuse that
-        // same tracker here so click measurement remains single-source and does not
-        // require a second click handler.
+        /*
+         * Reuse the existing core click tracker. /disaster-info/ remains excluded
+         * from the floating CTA itself; this enqueue does not render floating HTML.
+         */
         wp_enqueue_script(
             'bousai-check-cta',
             plugins_url( 'assets/js/bcc.js', $main_plugin_file ),
@@ -126,6 +104,25 @@ final class Bousai_Check_CTA_Disaster_Info_Inline {
     }
 
     /**
+     * Render an inert template only.
+     *
+     * The template is intentionally outside .bousai-official-info and has no
+     * visual effect until the RC5 client script mounts its first element into the
+     * stable post-current-actions slot owned by the disaster-info layout.
+     */
+    public static function render_template() {
+        if ( ! self::is_target_request() || ! self::is_surface_visible() ) {
+            return;
+        }
+
+        ?>
+        <template id="<?php echo esc_attr( self::TEMPLATE_ID ); ?>" data-bcc-template="<?php echo esc_attr( self::SURFACE ); ?>">
+            <?php echo self::render_cta(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+        </template>
+        <?php
+    }
+
+    /**
      * Render the approved Phase 1 CTA.
      */
     private static function render_cta() {
@@ -134,7 +131,7 @@ final class Bousai_Check_CTA_Disaster_Info_Inline {
         ob_start();
         ?>
         <aside class="bcc-inline-cta bcc-inline-cta--disaster-info"
-               data-bcc-surface="disaster_info_inline"
+               data-bcc-surface="<?php echo esc_attr( self::SURFACE ); ?>"
                aria-labelledby="bcc-disaster-info-inline-title">
             <div class="bcc-inline-cta__icon" aria-hidden="true">
                 <svg viewBox="0 0 96 96" focusable="false" aria-hidden="true">
@@ -149,7 +146,7 @@ final class Bousai_Check_CTA_Disaster_Info_Inline {
                 <p class="bcc-inline-cta__text">家族構成や住まいに合わせて、水・食料・トイレ・停電対策・避難など、必要な備えを確認できます。</p>
                 <a class="bcc-inline-cta__button bcc-track"
                    href="<?php echo esc_url( $url ); ?>"
-                   data-bcc-location="disaster_info_inline"
+                   data-bcc-location="<?php echo esc_attr( self::SURFACE ); ?>"
                    aria-label="わが家の防災チェックを始める">
                     <span>わが家の防災チェックを始める</span>
                     <span class="bcc-inline-cta__arrow" aria-hidden="true">›</span>
@@ -159,48 +156,5 @@ final class Bousai_Check_CTA_Disaster_Info_Inline {
         </aside>
         <?php
         return trim( ob_get_clean() );
-    }
-
-    /**
-     * Find the section containing an exact heading string and insert immediately
-     * before that section's matching closing tag. Nested <section> elements are
-     * counted; if the structure cannot be resolved, fail closed and return HTML
-     * unchanged.
-     */
-    private static function insert_before_heading_section_close( $html, $heading, $insert ) {
-        $heading_pos = strpos( $html, $heading );
-        if ( false === $heading_pos ) {
-            return $html;
-        }
-
-        $before = substr( $html, 0, $heading_pos );
-        $section_start = strripos( $before, '<section' );
-        if ( false === $section_start ) {
-            return $html;
-        }
-
-        $tail = substr( $html, $section_start );
-        if ( ! preg_match_all( '#</?section\b[^>]*>#i', $tail, $matches, PREG_OFFSET_CAPTURE ) ) {
-            return $html;
-        }
-
-        $depth = 0;
-        foreach ( $matches[0] as $match ) {
-            $tag_text = $match[0];
-            $offset   = $match[1];
-
-            if ( 0 === stripos( $tag_text, '</section' ) ) {
-                $depth--;
-            } else {
-                $depth++;
-            }
-
-            if ( 0 === $depth ) {
-                $insert_at = $section_start + $offset;
-                return substr( $html, 0, $insert_at ) . $insert . substr( $html, $insert_at );
-            }
-        }
-
-        return $html;
     }
 }
