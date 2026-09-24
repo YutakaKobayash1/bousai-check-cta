@@ -25,7 +25,7 @@ $root = dirname( __DIR__ );
 $class = file_get_contents( $root . '/includes/class-bcc-disaster-info-inline.php' );
 $js = file_get_contents( $root . '/assets/js/bcc-disaster-info-inline.js' );
 $layout = file_get_contents( $root . '/integration/seo-p0-post-current-actions.patch.js' );
-$sns = file_get_contents( $root . '/integration/bousai-disaster-share-v1.4.2.txt' );
+$sns = file_get_contents( $root . '/integration/bousai-disaster-share-v1.4.5.txt' );
 
 must_contain( 'CTA renders inert template', $class, "add_action( 'wp_footer', array( __CLASS__, 'render_template' )" );
 must_not_contain( 'CTA no longer rewrites shortcode output', $class, 'do_shortcode_tag' );
@@ -41,6 +41,8 @@ must_not_contain( 'CTA has no last-child placement guard', $js, 'lastElementChil
 must_contain( 'layout owns stable slot', $layout, 'data-bousai-slot="post-current-actions"' );
 must_contain( 'layout moves slot after current', $layout, 'anchor = moveAfter(postCurrentActions, anchor)' );
 
+must_contain( 'SNS preserves v1.4.4 five-button layout', $sns, 'grid-template-columns:repeat(5,minmax(0,1fr))' );
+must_contain( 'SNS preserves v1.4.4 share-copy refinement', $sns, "var line1 = area + 'の最新災害情報を確認';" );
 must_contain( 'SNS is slot aware', $sns, 'findPostCurrentActionsSlot' );
 must_contain( 'SNS mounts at slot end', $sns, 'slot.appendChild(block)' );
 must_contain( 'SNS preserves legacy fallback', $sns, 'current.parentNode.insertBefore(block, current.nextSibling)' );
