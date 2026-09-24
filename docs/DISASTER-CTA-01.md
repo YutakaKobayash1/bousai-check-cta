@@ -115,7 +115,7 @@ RC2〜RC4のsection内挿入/placement guard方式は廃止する。
    `[data-bousai-slot="post-current-actions"]` を direct child として作成・配置する。
 2. layout reorderは current と slot を一組として移動し、その後にprimary/basic/newsを並べる。
 3. CTA pluginはfooter templateからCTAだけをslot先頭へmountする。
-4. SNS共有v1.4.2はslot末尾へmountする。slotがなければ従来配置へfallback。
+4. SNS共有v1.4.5はslot末尾へmountする。slotがなければ従来配置へfallback。
 5. CTA/SNSはcurrent sectionやroot-level page orderを所有しない。
 
 最終DOM invariant:
