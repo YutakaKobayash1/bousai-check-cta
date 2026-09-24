@@ -92,8 +92,10 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    width: 100%;
+    width: min(100%, 560px);
     min-height: 56px;
+    margin-left: auto;
+    margin-right: auto;
     padding: 12px 20px;
     border: 0;
     border-radius: 14px;
@@ -161,7 +163,10 @@
     }
 
     .bcc-inline-cta--disaster-info a.bcc-inline-cta__button {
+        width: 100%;
         min-height: 54px;
+        margin-left: 0;
+        margin-right: 0;
         padding: 12px 14px;
         border-radius: 12px;
         font-size: 16px;
