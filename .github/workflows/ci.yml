@@ -56,7 +56,7 @@ jobs:
           Architecture: post-current-actions stable slot contract
           Required coordinated preview dependencies:
           - latest-disaster-info layout owner post-current-actions slot patch
-          - SNS Share v1.4.2 slot-aware placement
+          - SNS Share v1.4.5 slot-aware placement
           EOF
           (
             cd dist
