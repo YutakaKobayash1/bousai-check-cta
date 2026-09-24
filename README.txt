@@ -1,4 +1,4 @@
-防災のまとめ 防災チェック導線 v1.4.0-rc4
+防災のまとめ 防災チェック導線 v1.4.0-rc5
 
 【目的】
 防災チェック固定ページへの4つの導線を、Cocoon本体を直接編集せずに追加します。
@@ -186,3 +186,13 @@ gtagがなくdataLayerが存在する場合はdataLayerへpushします。
 - 本番DOMではアコーディオン初期化が現在情報section内部の子要素をCTAより後ろへ移動することがあるため、専用JSでCTAを現在情報sectionの最終子要素に固定。
 - SNS共有blockは現在情報sectionの直後に置く既存仕様を変更せず、最終表示順を「現在情報の全項目 → CTA → SNS共有」に固定。
 - SNS共有snippet、災害情報renderer、Content Bridge、GA4 Journeyは変更しない。
+
+
+【v1.4.0-rc5 根本修正（DISASTER-CTA-01）】
+- RC2〜RC4の「CTA pluginが災害情報DOMの最終位置を直接制御する」方式を廃止。
+- latest-disaster-info layout ownerが root-level stable slot `data-bousai-slot="post-current-actions"` を current section直後に所有する契約へ変更。
+- CTAはfooterのinert templateからslot先頭へ自分自身だけをmountする。current sectionの子要素を検索・移動しない。
+- CTAのMutationObserverはslot出現待ちだけに使い、mount成功後にdisconnectする。setTimeoutによる位置競合は持たない。
+- SNS共有v1.4.2はslotあり→slot末尾、slotなし→従来current直後fallback。
+- 最終順序：現在情報の全項目 → CTA → SNS共有 → 既存後続コンテンツ。
+- integration/ にDOM contract、SEO P0 layout patch、SNS共有v1.4.2を格納。
