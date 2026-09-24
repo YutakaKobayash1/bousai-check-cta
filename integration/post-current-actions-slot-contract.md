@@ -60,7 +60,7 @@ remain available on zero-warning pages.
 
 ### SNS
 - If the slot exists, append SNS block to the slot.
-- If the slot does not exist, fallback to v1.4.1 behavior (current.nextSibling).
+- If the slot does not exist, fallback to v1.4.4 behavior (current.nextSibling).
 - Does not move the slot or current section.
 
 ## Acceptance invariant
