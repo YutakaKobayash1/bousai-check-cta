@@ -52,14 +52,21 @@ function makeDom({ withSlot, withTemplate }) {
 
   const win = dom.window;
 
+  win.__mutationObservers = [];
   class NoopMutationObserver {
     constructor(callback) {
       this.callback = callback;
       this.disconnected = false;
+      win.__mutationObservers.push(this);
     }
     observe() {}
     disconnect() {
       this.disconnected = true;
+    }
+    trigger() {
+      if (!this.disconnected) {
+        this.callback([], this);
+      }
     }
   }
 
@@ -88,6 +95,39 @@ function runScripts(dom, runCta) {
   win.eval(snsJs);
   win.document.dispatchEvent(new win.Event('DOMContentLoaded'));
 }
+
+
+(function testTemplateArrivesAfterCtaScript() {
+  const dom = makeDom({ withSlot: true, withTemplate: false });
+  const win = dom.window;
+
+  win.eval(ctaJs);
+
+  assert(
+    !win.document.querySelector('[data-bcc-surface="disaster_info_inline"]'),
+    'CTA is not fabricated before footer template exists'
+  );
+
+  const template = win.document.createElement('template');
+  template.id = 'bcc-disaster-info-inline-template';
+  template.setAttribute('data-bcc-template', 'disaster_info_inline');
+  template.innerHTML =
+    '<aside data-bcc-surface="disaster_info_inline">' +
+    '<a data-bcc-location="disaster_info_inline" href="/check/">check</a>' +
+    '</aside>';
+  win.document.body.appendChild(template);
+
+  win.__mutationObservers.forEach(function (observer) {
+    observer.trigger();
+  });
+
+  const slot = win.document.querySelector(
+    '.bousai-official-info > [data-bousai-slot="post-current-actions"]'
+  );
+  const cta = slot && slot.querySelector('[data-bcc-surface="disaster_info_inline"]');
+
+  assert(!!cta, 'CTA mounts when footer template arrives after CTA script');
+})();
 
 (function testSlotWithCtaAndSns() {
   const dom = makeDom({ withSlot: true, withTemplate: true });
@@ -129,4 +169,4 @@ function runScripts(dom, runCta) {
   );
 })();
 
-process.stdout.write('All RC5 DOM integration tests passed.\n');
+process.stdout.write('All RC6 DOM integration tests passed.\n');
