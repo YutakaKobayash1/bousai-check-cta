@@ -1,6 +1,6 @@
 <?php
 /**
- * Static architecture regression for DISASTER-CTA-01 RC6.
+ * Static architecture regression for DISASTER-CTA-01 v1.4.0.
  * This intentionally verifies ownership boundaries as source invariants.
  */
 
@@ -24,6 +24,7 @@ $root = dirname( __DIR__ );
 
 $class = file_get_contents( $root . '/includes/class-bcc-disaster-info-inline.php' );
 $js = file_get_contents( $root . '/assets/js/bcc-disaster-info-inline.js' );
+$css = file_get_contents( $root . '/assets/css/bcc-disaster-info-inline.css' );
 $layout = file_get_contents( $root . '/integration/seo-p0-post-current-actions.patch.js' );
 $sns = file_get_contents( $root . '/integration/bousai-disaster-share-v1.4.5.txt' );
 
@@ -34,6 +35,8 @@ must_not_contain( 'CTA no longer has HTML section parser', $class, 'insert_befor
 must_contain( 'CTA waits for stable slot', $js, '[data-bousai-slot="post-current-actions"]' );
 must_contain( 'CTA re-resolves footer template at mount time', $js, "document.getElementById(TEMPLATE_ID)" );
 must_contain( 'CTA waits across initial body assembly', $js, "waitForMountInputs.observe(document.body || document.documentElement" );
+must_contain( 'desktop button max width', $css, 'width: min(100%, 560px);' );
+must_contain( 'mobile button returns to full width', $css, 'width: 100%;' );
 must_contain( 'CTA mounts first within slot', $js, 'slot.insertBefore(cta, slot.firstChild)' );
 must_contain( 'CTA disconnects wait observer', $js, 'waitForMountInputs.disconnect()' );
 must_not_contain( 'CTA does not identify current section', $js, 'findCurrentSection' );
@@ -49,4 +52,4 @@ must_contain( 'SNS is slot aware', $sns, 'findPostCurrentActionsSlot' );
 must_contain( 'SNS mounts at slot end', $sns, 'slot.appendChild(block)' );
 must_contain( 'SNS preserves legacy fallback', $sns, 'current.parentNode.insertBefore(block, current.nextSibling)' );
 
-echo "All RC6 slot-contract tests passed.\n";
+echo "All v1.4.0 slot-contract tests passed.\n";
