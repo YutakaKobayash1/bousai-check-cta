@@ -4,7 +4,7 @@ const { JSDOM } = require('jsdom');
 
 const rootDir = path.resolve(__dirname, '..');
 const ctaJs = fs.readFileSync(path.join(rootDir, 'assets/js/bcc-disaster-info-inline.js'), 'utf8');
-const snsSource = fs.readFileSync(path.join(rootDir, 'integration/bousai-disaster-share-v1.4.2.txt'), 'utf8');
+const snsSource = fs.readFileSync(path.join(rootDir, 'integration/bousai-disaster-share-v1.4.5.txt'), 'utf8');
 
 const scriptMatch = snsSource.match(/<script id="bousai-disaster-share-script">([\s\S]*?)<\/script>/);
 if (!scriptMatch) {
