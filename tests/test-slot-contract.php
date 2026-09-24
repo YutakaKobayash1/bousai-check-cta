@@ -1,6 +1,6 @@
 <?php
 /**
- * Static architecture regression for DISASTER-CTA-01 RC5.
+ * Static architecture regression for DISASTER-CTA-01 RC6.
  * This intentionally verifies ownership boundaries as source invariants.
  */
 
@@ -32,8 +32,10 @@ must_not_contain( 'CTA no longer rewrites shortcode output', $class, 'do_shortco
 must_not_contain( 'CTA no longer has HTML section parser', $class, 'insert_before_heading_section_close' );
 
 must_contain( 'CTA waits for stable slot', $js, '[data-bousai-slot="post-current-actions"]' );
+must_contain( 'CTA re-resolves footer template at mount time', $js, "document.getElementById(TEMPLATE_ID)" );
+must_contain( 'CTA waits across initial body assembly', $js, "waitForMountInputs.observe(document.body || document.documentElement" );
 must_contain( 'CTA mounts first within slot', $js, 'slot.insertBefore(cta, slot.firstChild)' );
-must_contain( 'CTA disconnects wait observer', $js, 'waitForSlot.disconnect()' );
+must_contain( 'CTA disconnects wait observer', $js, 'waitForMountInputs.disconnect()' );
 must_not_contain( 'CTA does not identify current section', $js, 'findCurrentSection' );
 must_not_contain( 'CTA has no competing placement timer', $js, 'setTimeout(' );
 must_not_contain( 'CTA has no last-child placement guard', $js, 'lastElementChild' );
@@ -47,4 +49,4 @@ must_contain( 'SNS is slot aware', $sns, 'findPostCurrentActionsSlot' );
 must_contain( 'SNS mounts at slot end', $sns, 'slot.appendChild(block)' );
 must_contain( 'SNS preserves legacy fallback', $sns, 'current.parentNode.insertBefore(block, current.nextSibling)' );
 
-echo "All RC5 slot-contract tests passed.\n";
+echo "All RC6 slot-contract tests passed.\n";
