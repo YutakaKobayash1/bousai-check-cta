@@ -1,6 +1,6 @@
 <?php
 /**
- * Static architecture regression for DISASTER-CTA-01 v1.4.0.
+ * Static architecture regression for DISASTER-CTA-01 v1.4.1-rc1.
  * This intentionally verifies ownership boundaries as source invariants.
  */
 
@@ -29,27 +29,29 @@ $layout = file_get_contents( $root . '/integration/seo-p0-post-current-actions.p
 $sns = file_get_contents( $root . '/integration/bousai-disaster-share-v1.4.5.txt' );
 
 must_contain( 'CTA renders inert template', $class, "add_action( 'wp_footer', array( __CLASS__, 'render_template' )" );
-must_not_contain( 'CTA no longer rewrites shortcode output', $class, 'do_shortcode_tag' );
-must_not_contain( 'CTA no longer has HTML section parser', $class, 'insert_before_heading_section_close' );
+must_not_contain( 'CTA does not rewrite shortcode output', $class, 'do_shortcode_tag' );
+must_not_contain( 'CTA has no HTML section parser', $class, 'insert_before_heading_section_close' );
 
 must_contain( 'CTA waits for stable slot', $js, '[data-bousai-slot="post-current-actions"]' );
 must_contain( 'CTA re-resolves footer template at mount time', $js, "document.getElementById(TEMPLATE_ID)" );
 must_contain( 'CTA waits across initial body assembly', $js, "waitForMountInputs.observe(document.body || document.documentElement" );
-must_contain( 'desktop button max width', $css, 'width: min(100%, 560px);' );
-must_contain( 'mobile button returns to full width', $css, 'width: 100%;' );
-must_contain( 'CTA mounts first within slot', $js, 'slot.insertBefore(cta, slot.firstChild)' );
-must_contain( 'CTA disconnects wait observer', $js, 'waitForMountInputs.disconnect()' );
+must_contain( 'desktop button max width unchanged', $css, 'width: min(100%, 560px);' );
+must_contain( 'mobile button remains full width', $css, 'width: 100%;' );
+must_contain( 'CTA mounts only itself at slot tail', $js, 'slot.appendChild(cta)' );
+must_contain( 'CTA observes only slot child list', $js, 'slotTailObserver.observe(slot, {' );
+must_contain( 'CTA corrects only when not tail', $js, 'slot.lastElementChild !== cta' );
+must_contain( 'CTA disconnects initial wait observer', $js, 'waitForMountInputs.disconnect()' );
+must_not_contain( 'CTA no longer forces first-child ownership', $js, 'slot.insertBefore(cta, slot.firstChild)' );
 must_not_contain( 'CTA does not identify current section', $js, 'findCurrentSection' );
 must_not_contain( 'CTA has no competing placement timer', $js, 'setTimeout(' );
-must_not_contain( 'CTA has no last-child placement guard', $js, 'lastElementChild' );
 
-must_contain( 'layout owns stable slot', $layout, 'data-bousai-slot="post-current-actions"' );
-must_contain( 'layout moves slot after current', $layout, 'anchor = moveAfter(postCurrentActions, anchor)' );
+must_contain( 'layout still owns stable slot', $layout, 'data-bousai-slot="post-current-actions"' );
+must_contain( 'layout still moves slot after current', $layout, 'anchor = moveAfter(postCurrentActions, anchor)' );
 
-must_contain( 'SNS preserves v1.4.4 five-button layout', $sns, 'grid-template-columns:repeat(5,minmax(0,1fr))' );
-must_contain( 'SNS preserves v1.4.4 share-copy refinement', $sns, "var line1 = area + 'の最新災害情報を確認';" );
-must_contain( 'SNS is slot aware', $sns, 'findPostCurrentActionsSlot' );
-must_contain( 'SNS mounts at slot end', $sns, 'slot.appendChild(block)' );
+must_contain( 'SNS baseline preserves five-button layout', $sns, 'grid-template-columns:repeat(5,minmax(0,1fr))' );
+must_contain( 'SNS baseline preserves share-copy refinement', $sns, "var line1 = area + 'の最新災害情報を確認';" );
+must_contain( 'SNS remains slot aware', $sns, 'findPostCurrentActionsSlot' );
+must_contain( 'SNS still moves only itself into slot', $sns, 'slot.appendChild(block)' );
 must_contain( 'SNS preserves legacy fallback', $sns, 'current.parentNode.insertBefore(block, current.nextSibling)' );
 
-echo "All v1.4.0 slot-contract tests passed.\n";
+echo "All v1.4.1-rc1 slot-contract tests passed.\n";
