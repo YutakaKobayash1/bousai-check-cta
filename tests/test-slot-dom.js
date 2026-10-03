@@ -87,6 +87,12 @@ function makeDom({ withSlot, withTemplate }) {
   return dom;
 }
 
+function triggerMutationObservers(win) {
+  win.__mutationObservers.slice().forEach(function (observer) {
+    observer.trigger();
+  });
+}
+
 function runScripts(dom, runCta) {
   const win = dom.window;
   if (runCta) {
@@ -94,8 +100,8 @@ function runScripts(dom, runCta) {
   }
   win.eval(snsJs);
   win.document.dispatchEvent(new win.Event('DOMContentLoaded'));
+  triggerMutationObservers(win);
 }
-
 
 (function testTemplateArrivesAfterCtaScript() {
   const dom = makeDom({ withSlot: true, withTemplate: false });
@@ -117,9 +123,7 @@ function runScripts(dom, runCta) {
     '</aside>';
   win.document.body.appendChild(template);
 
-  win.__mutationObservers.forEach(function (observer) {
-    observer.trigger();
-  });
+  triggerMutationObservers(win);
 
   const slot = win.document.querySelector(
     '.bousai-official-info > [data-bousai-slot="post-current-actions"]'
@@ -127,9 +131,10 @@ function runScripts(dom, runCta) {
   const cta = slot && slot.querySelector('[data-bcc-surface="disaster_info_inline"]');
 
   assert(!!cta, 'CTA mounts when footer template arrives after CTA script');
+  assert(slot.lastElementChild === cta, 'late-mounted CTA owns only the slot tail');
 })();
 
-(function testSlotWithCtaAndSns() {
+(function testSlotWithSnsAndCta() {
   const dom = makeDom({ withSlot: true, withTemplate: true });
   runScripts(dom, true);
 
@@ -141,9 +146,60 @@ function runScripts(dom, runCta) {
 
   assert(current.nextElementSibling === slot, 'stable slot remains immediately after current section');
   assert(slot.nextElementSibling === downstream, 'downstream content remains after stable slot');
-  assert(children.length === 2, 'slot contains exactly CTA and SNS in integration fixture');
-  assert(children[0].matches('[data-bcc-surface="disaster_info_inline"]'), 'CTA is first inside stable slot');
-  assert(children[1].id === 'bousai-disaster-share', 'SNS share is second inside stable slot');
+  assert(children.length === 2, 'slot contains exactly SNS and CTA in integration fixture');
+  assert(children[0].id === 'bousai-disaster-share', 'SNS remains before CTA when weather is absent');
+  assert(children[1].matches('[data-bcc-surface="disaster_info_inline"]'), 'CTA remains at slot tail');
+})();
+
+(function testWeatherCanInsertBeforeCtaWithoutBeingMovedByCta() {
+  const dom = makeDom({ withSlot: true, withTemplate: true });
+  runScripts(dom, true);
+
+  const win = dom.window;
+  const slot = win.document.querySelector(
+    '.bousai-official-info > [data-bousai-slot="post-current-actions"]'
+  );
+  const weather = win.document.createElement('section');
+  weather.id = 'weather-forecast';
+  weather.setAttribute('data-bousai-weather', 'forecast');
+  weather.textContent = 'weather';
+
+  const sns = slot.querySelector('#bousai-disaster-share');
+  const cta = slot.querySelector('[data-bcc-surface="disaster_info_inline"]');
+
+  slot.insertBefore(weather, cta);
+  triggerMutationObservers(win);
+
+  const children = Array.from(slot.children);
+
+  assert(children.length === 3, 'slot contains SNS, weather, and CTA');
+  assert(children[0] === sns, 'CTA contract does not move SNS');
+  assert(children[1] === weather, 'CTA contract does not move weather');
+  assert(children[2] === cta, 'CTA remains after SNS and weather');
+})();
+
+(function testLateForeignConsumerLeavesForeignOrderUntouched() {
+  const dom = makeDom({ withSlot: true, withTemplate: true });
+  runScripts(dom, true);
+
+  const win = dom.window;
+  const slot = win.document.querySelector(
+    '.bousai-official-info > [data-bousai-slot="post-current-actions"]'
+  );
+  const sns = slot.querySelector('#bousai-disaster-share');
+  const cta = slot.querySelector('[data-bcc-surface="disaster_info_inline"]');
+  const weather = win.document.createElement('section');
+  weather.id = 'weather-forecast-late';
+
+  slot.appendChild(weather);
+  assert(slot.lastElementChild === weather, 'late foreign consumer can mount after CTA initially');
+
+  triggerMutationObservers(win);
+
+  const children = Array.from(slot.children);
+  assert(children[0] === sns, 'SNS relative order is preserved after CTA tail correction');
+  assert(children[1] === weather, 'weather remains after SNS');
+  assert(children[2] === cta, 'CTA moves only itself back to tail');
 })();
 
 (function testSlotWithoutCta() {
@@ -155,7 +211,7 @@ function runScripts(dom, runCta) {
   const children = Array.from(slot.children);
 
   assert(children.length === 1, 'disabled CTA leaves one SNS child in stable slot');
-  assert(children[0].id === 'bousai-disaster-share', 'SNS share occupies stable slot when CTA is disabled');
+  assert(children[0].id === 'bousai-disaster-share', 'SNS owns its slot position when CTA is disabled');
 })();
 
 (function testLegacyFallbackWithoutSlot() {
@@ -169,4 +225,4 @@ function runScripts(dom, runCta) {
   );
 })();
 
-process.stdout.write('All v1.4.0 DOM integration tests passed.\n');
+process.stdout.write('All v1.4.1-rc1 DOM integration tests passed.\n');
