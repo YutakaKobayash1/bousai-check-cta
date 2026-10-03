@@ -1,4 +1,4 @@
-防災のまとめ 防災チェック導線 v1.4.0
+防災のまとめ 防災チェック導線 v1.4.1-rc1
 
 【目的】
 防災チェック固定ページへの4つの導線を、Cocoon本体を直接編集せずに追加します。
@@ -212,3 +212,13 @@ gtagがなくdataLayerが存在する場合はdataLayerへpushします。
 - PCの「わが家の防災チェックを始める」ボタンを最大560px・中央寄せへ調整し、横に長すぎる見え方を改善。
 - SPでは従来どおりボタンを横幅100%で表示。
 - 最新災害情報本文内CTAの公開スイッチは引き続き明示的な管理者操作でONにする。
+
+
+【v1.4.1-rc1 変更（天気ブロック受け入れ契約）】
+- post-current-actions slotの先頭をCTAが強制取得する方式を廃止
+- CTAは自分自身のnodeだけをslot末尾へappendし、末尾位置だけを維持
+- slot内のchildList監視はCTA自身の末尾維持だけに使用し、SNS・天気nodeは移動しない
+- 天気ありの期待順序：現在情報 → SNS共有 → 天気予報 → 防災チェックCTA → 後続コンテンツ
+- 天気なしの期待順序：現在情報 → SNS共有 → 防災チェックCTA → 後続コンテンツ
+- SEO P0のroot-level slot配置、Priority View、Content Bridge、Social Growth、災害情報取得本体は変更しない
+- CTAの文言・デザイン・リンク先 /check/・impression/click計測は変更しない
