@@ -53,13 +53,19 @@ function makeDom({ withSlot, withTemplate }) {
   const win = dom.window;
 
   win.__mutationObservers = [];
+
   class NoopMutationObserver {
     constructor(callback) {
       this.callback = callback;
       this.disconnected = false;
+      this.target = null;
+      this.options = {};
       win.__mutationObservers.push(this);
     }
-    observe() {}
+    observe(target, options) {
+      this.target = target;
+      this.options = options || {};
+    }
     disconnect() {
       this.disconnected = true;
     }
@@ -87,20 +93,43 @@ function makeDom({ withSlot, withTemplate }) {
   return dom;
 }
 
-function triggerMutationObservers(win) {
+function triggerMutationObserversFor(win, mutationTarget) {
   win.__mutationObservers.slice().forEach(function (observer) {
-    observer.trigger();
+    if (observer.disconnected || !observer.target) return;
+
+    const direct = observer.target === mutationTarget;
+    const descendant =
+      observer.options.subtree &&
+      observer.target.contains &&
+      observer.target.contains(mutationTarget);
+
+    if (direct || descendant) {
+      observer.trigger();
+    }
   });
+}
+
+function slotFor(win) {
+  return win.document.querySelector(
+    '.bousai-official-info > [data-bousai-slot="post-current-actions"]'
+  );
 }
 
 function runScripts(dom, runCta) {
   const win = dom.window;
+
   if (runCta) {
     win.eval(ctaJs);
   }
+
   win.eval(snsJs);
   win.document.dispatchEvent(new win.Event('DOMContentLoaded'));
-  triggerMutationObservers(win);
+
+  const slot = slotFor(win);
+  if (slot) {
+    // SNS appends inside the slot. Only observers watching that slot should react.
+    triggerMutationObserversFor(win, slot);
+  }
 }
 
 (function testTemplateArrivesAfterCtaScript() {
@@ -123,11 +152,9 @@ function runScripts(dom, runCta) {
     '</aside>';
   win.document.body.appendChild(template);
 
-  triggerMutationObservers(win);
+  triggerMutationObserversFor(win, win.document.body);
 
-  const slot = win.document.querySelector(
-    '.bousai-official-info > [data-bousai-slot="post-current-actions"]'
-  );
+  const slot = slotFor(win);
   const cta = slot && slot.querySelector('[data-bcc-surface="disaster_info_inline"]');
 
   assert(!!cta, 'CTA mounts when footer template arrives after CTA script');
@@ -138,10 +165,11 @@ function runScripts(dom, runCta) {
   const dom = makeDom({ withSlot: true, withTemplate: true });
   runScripts(dom, true);
 
-  const root = dom.window.document.querySelector('.bousai-official-info');
-  const current = dom.window.document.getElementById('current');
-  const slot = root.querySelector(':scope > [data-bousai-slot="post-current-actions"]');
-  const downstream = dom.window.document.getElementById('downstream');
+  const win = dom.window;
+  const root = win.document.querySelector('.bousai-official-info');
+  const current = win.document.getElementById('current');
+  const slot = slotFor(win);
+  const downstream = win.document.getElementById('downstream');
   const children = Array.from(slot.children);
 
   assert(current.nextElementSibling === slot, 'stable slot remains immediately after current section');
@@ -156,9 +184,7 @@ function runScripts(dom, runCta) {
   runScripts(dom, true);
 
   const win = dom.window;
-  const slot = win.document.querySelector(
-    '.bousai-official-info > [data-bousai-slot="post-current-actions"]'
-  );
+  const slot = slotFor(win);
   const weather = win.document.createElement('section');
   weather.id = 'weather-forecast';
   weather.setAttribute('data-bousai-weather', 'forecast');
@@ -168,7 +194,7 @@ function runScripts(dom, runCta) {
   const cta = slot.querySelector('[data-bcc-surface="disaster_info_inline"]');
 
   slot.insertBefore(weather, cta);
-  triggerMutationObservers(win);
+  triggerMutationObserversFor(win, slot);
 
   const children = Array.from(slot.children);
 
@@ -183,9 +209,7 @@ function runScripts(dom, runCta) {
   runScripts(dom, true);
 
   const win = dom.window;
-  const slot = win.document.querySelector(
-    '.bousai-official-info > [data-bousai-slot="post-current-actions"]'
-  );
+  const slot = slotFor(win);
   const sns = slot.querySelector('#bousai-disaster-share');
   const cta = slot.querySelector('[data-bcc-surface="disaster_info_inline"]');
   const weather = win.document.createElement('section');
@@ -194,7 +218,7 @@ function runScripts(dom, runCta) {
   slot.appendChild(weather);
   assert(slot.lastElementChild === weather, 'late foreign consumer can mount after CTA initially');
 
-  triggerMutationObservers(win);
+  triggerMutationObserversFor(win, slot);
 
   const children = Array.from(slot.children);
   assert(children[0] === sns, 'SNS relative order is preserved after CTA tail correction');
@@ -202,12 +226,31 @@ function runScripts(dom, runCta) {
   assert(children[2] === cta, 'CTA moves only itself back to tail');
 })();
 
+(function testLateSnsTailClaimIsCorrectedByMovingOnlyCta() {
+  const dom = makeDom({ withSlot: true, withTemplate: true });
+  runScripts(dom, true);
+
+  const win = dom.window;
+  const slot = slotFor(win);
+  const sns = slot.querySelector('#bousai-disaster-share');
+  const cta = slot.querySelector('[data-bcc-surface="disaster_info_inline"]');
+
+  // Simulate the existing SNS snippet's delayed placement pass.
+  slot.appendChild(sns);
+  assert(slot.lastElementChild === sns, 'SNS can temporarily move itself to slot tail');
+
+  triggerMutationObserversFor(win, slot);
+
+  assert(slot.children[0] === sns, 'SNS node is not moved by CTA logic');
+  assert(slot.children[1] === cta, 'CTA restores only itself to the final tail position');
+})();
+
 (function testSlotWithoutCta() {
   const dom = makeDom({ withSlot: true, withTemplate: false });
   runScripts(dom, false);
 
-  const root = dom.window.document.querySelector('.bousai-official-info');
-  const slot = root.querySelector(':scope > [data-bousai-slot="post-current-actions"]');
+  const win = dom.window;
+  const slot = slotFor(win);
   const children = Array.from(slot.children);
 
   assert(children.length === 1, 'disabled CTA leaves one SNS child in stable slot');
