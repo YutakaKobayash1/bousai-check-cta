@@ -1,0 +1,184 @@
+.bcc-inline-cta--disaster-info {
+    --bcc-inline-border: #69d5d7;
+    --bcc-inline-title: #0b2e56;
+    --bcc-inline-text: #173a59;
+    --bcc-inline-green: #0b936a;
+    --bcc-inline-green-hover: #087c59;
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: 150px minmax(0, 1fr);
+    align-items: center;
+    gap: 26px;
+    width: 100%;
+    margin: 28px 0;
+    padding: 26px 30px;
+    border: 2px solid var(--bcc-inline-border);
+    border-radius: 14px;
+    background: linear-gradient(135deg, #f2fbff 0%, #effcf7 100%);
+    box-shadow: 0 4px 14px rgba(25, 84, 108, 0.06);
+}
+
+.bcc-inline-cta--disaster-info *,
+.bcc-inline-cta--disaster-info *::before,
+.bcc-inline-cta--disaster-info *::after {
+    box-sizing: border-box;
+}
+
+.bcc-inline-cta--disaster-info .bcc-inline-cta__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+}
+
+.bcc-inline-cta--disaster-info .bcc-inline-cta__icon svg {
+    display: block;
+    width: min(124px, 100%);
+    height: auto;
+    overflow: visible;
+}
+
+.bcc-inline-cta--disaster-info .bcc-inline-cta__house {
+    fill: #ffffff;
+    stroke: #3b82e3;
+    stroke-width: 5;
+    stroke-linejoin: round;
+}
+
+.bcc-inline-cta--disaster-info .bcc-inline-cta__roof {
+    fill: none;
+    stroke: #3b82e3;
+    stroke-width: 5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.bcc-inline-cta--disaster-info .bcc-inline-cta__shield {
+    fill: #11a36f;
+    stroke: #ffffff;
+    stroke-width: 3;
+    stroke-linejoin: round;
+}
+
+.bcc-inline-cta--disaster-info .bcc-inline-cta__check {
+    fill: none;
+    stroke: #ffffff;
+    stroke-width: 5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.bcc-inline-cta--disaster-info .bcc-inline-cta__content {
+    min-width: 0;
+}
+
+.bcc-inline-cta--disaster-info .bcc-inline-cta__title {
+    margin: 0 0 8px;
+    color: var(--bcc-inline-title);
+    font-size: clamp(21px, 2.2vw, 29px);
+    font-weight: 800;
+    line-height: 1.35;
+}
+
+.bcc-inline-cta--disaster-info .bcc-inline-cta__text {
+    margin: 0 0 16px;
+    color: var(--bcc-inline-text);
+    font-size: 16px;
+    line-height: 1.75;
+}
+
+.bcc-inline-cta--disaster-info a.bcc-inline-cta__button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: min(100%, 560px);
+    min-height: 56px;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 12px 20px;
+    border: 0;
+    border-radius: 14px;
+    background: var(--bcc-inline-green);
+    color: #ffffff !important;
+    font-size: 19px;
+    font-weight: 800;
+    line-height: 1.35;
+    text-align: center;
+    text-decoration: none !important;
+    box-shadow: 0 4px 10px rgba(11, 147, 106, 0.16);
+    transition: background-color .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+
+.bcc-inline-cta--disaster-info a.bcc-inline-cta__button:hover {
+    background: var(--bcc-inline-green-hover);
+    color: #ffffff !important;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 14px rgba(11, 147, 106, 0.2);
+}
+
+.bcc-inline-cta--disaster-info a.bcc-inline-cta__button:focus-visible {
+    outline: 3px solid rgba(11, 147, 106, 0.28);
+    outline-offset: 3px;
+}
+
+.bcc-inline-cta--disaster-info .bcc-inline-cta__arrow {
+    font-size: 28px;
+    font-weight: 400;
+    line-height: 1;
+}
+
+.bcc-inline-cta--disaster-info .bcc-inline-cta__note {
+    margin: 10px 0 0;
+    color: #3c5366;
+    font-size: 13px;
+    line-height: 1.5;
+    text-align: center;
+}
+
+@media (max-width: 720px) {
+    .bcc-inline-cta--disaster-info {
+        grid-template-columns: 1fr;
+        gap: 12px;
+        margin: 22px 0 26px;
+        padding: 20px 14px 16px;
+        border-radius: 13px;
+    }
+
+    .bcc-inline-cta--disaster-info .bcc-inline-cta__icon svg {
+        width: 88px;
+    }
+
+    .bcc-inline-cta--disaster-info .bcc-inline-cta__title {
+        margin-bottom: 7px;
+        font-size: 21px;
+        line-height: 1.4;
+        text-align: center;
+    }
+
+    .bcc-inline-cta--disaster-info .bcc-inline-cta__text {
+        margin-bottom: 14px;
+        font-size: 15px;
+        line-height: 1.7;
+    }
+
+    .bcc-inline-cta--disaster-info a.bcc-inline-cta__button {
+        width: 100%;
+        min-height: 54px;
+        margin-left: 0;
+        margin-right: 0;
+        padding: 12px 14px;
+        border-radius: 12px;
+        font-size: 16px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bcc-inline-cta--disaster-info a.bcc-inline-cta__button {
+        transition: none;
+    }
+
+    .bcc-inline-cta--disaster-info a.bcc-inline-cta__button:hover {
+        transform: none;
+    }
+}
