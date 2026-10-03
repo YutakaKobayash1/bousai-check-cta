@@ -15,6 +15,9 @@
 
   var impressionSeen = new WeakSet();
   var impressionObserver = null;
+  var slotTailObserver = null;
+  var observedSlot = null;
+  var observedCta = null;
 
   function payload(cta) {
     var link = cta.querySelector('a[data-bcc-location="disaster_info_inline"]');
@@ -76,16 +79,60 @@
   }
 
   /**
+   * Keep only our own node at the tail of the stable layout-owned slot.
+   *
+   * This deliberately does not inspect, move, or reorder SNS/weather nodes.
+   * Their relative order remains owned by those components.
+   */
+  function keepOwnNodeAtTail(slot, cta) {
+    if (!slot || !cta || cta.parentNode !== slot) return false;
+
+    if (slot.lastElementChild !== cta) {
+      slot.appendChild(cta);
+    }
+
+    return true;
+  }
+
+  /**
+   * Other slot consumers can mount after this CTA. Watch only the slot's direct
+   * child list and, when needed, move only this CTA back to the tail.
+   */
+  function observeOwnTail(slot, cta) {
+    if (!('MutationObserver' in window)) return;
+
+    if (slotTailObserver && observedSlot === slot && observedCta === cta) {
+      return;
+    }
+
+    if (slotTailObserver) {
+      slotTailObserver.disconnect();
+    }
+
+    observedSlot = slot;
+    observedCta = cta;
+
+    slotTailObserver = new MutationObserver(function () {
+      keepOwnNodeAtTail(slot, cta);
+    });
+
+    slotTailObserver.observe(slot, {
+      childList: true
+    });
+  }
+
+  /**
    * Mount only our own node into the stable layout-owned slot.
    *
    * Contract:
-   * - layout owner owns the slot position
-   * - CTA owns only its own node
-   * - SNS share owns only its own node
-   * - CTA is inserted first so the slot order is CTA -> SNS
+   * - layout owner owns the root-level slot position
+   * - SNS owns only its own node
+   * - weather owns only its own node
+   * - CTA owns only its own node and stays at the slot tail
+   * - CTA never moves foreign component nodes
    *
-   * No current-section lookup, no current-section child reordering, no timers
-   * that compete with Priority View/SEO/SNS layout writers.
+   * Expected order when all consumers exist:
+   * SNS -> weather -> CTA
    */
   function mount() {
     var slot = root.querySelector(SLOT_SELECTOR);
@@ -100,15 +147,12 @@
       if (!source) return false;
 
       cta = source.cloneNode(true);
-      slot.insertBefore(cta, slot.firstChild);
-    } else if (slot.firstElementChild !== cta) {
-      /*
-       * This is not a page-layout reorder. It only keeps this component first
-       * inside its explicitly owned action slot so SNS can follow it.
-       */
-      slot.insertBefore(cta, slot.firstChild);
+      slot.appendChild(cta);
+    } else {
+      keepOwnNodeAtTail(slot, cta);
     }
 
+    observeOwnTail(slot, cta);
     observeImpression(cta);
     return true;
   }
