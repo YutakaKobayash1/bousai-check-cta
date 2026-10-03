@@ -7,7 +7,7 @@
 - 公開スイッチ: 初期OFF。管理者は `?bousai_cta_preview=1` で確認可能。公開ONは人間承認後のみ
 - surface: `disaster_info_inline`
 - 対象: 全国＋47都道府県の48ページ
-- 位置: 「現在発表されている警報・災害情報」セクションの**末尾（閉じタグ直前）**。見た目では現在情報の直後・SNS共有ブロックの直上
+- 位置: current section直後の root-level stable slot `[data-bousai-slot="post-current-actions"]` の末尾側。CTAは自分自身だけをslot末尾へ維持し、SNS・天気・current sectionは移動しない
 - 既存の後続ブロック（「この状況で確認しておきたいこと」「都道府県の公式防災情報」「最近発表された…」等）は並び替えない
 - 警報0件でも表示
 - 遷移先: `/check/`
@@ -42,11 +42,22 @@ Phase 1で変更しないもの:
 - 既存の災害情報本文・公的情報ロジック
 
 ## 実装方式
-`do_shortcode_tag` の `bousai_official_info` 出力に対し、見出し `現在発表されている警報・災害情報` を含む `<section>` の対応する閉じタグ直前へCTAを挿入する。これにより、優先表示MVPがsection自体を後から移動してもCTAが一緒に移動し、SNS共有pluginがsection直後へ共有ブロックを戻しても表示順は「現在情報 → CTA → SNS共有」となる。
+latest-disaster-info layout ownerがcurrent section直後に提供する
+`[data-bousai-slot="post-current-actions"]` を唯一の配置契約とする。
 
-- 同じHTMLに `data-bcc-surface="disaster_info_inline"` が既にあれば再挿入しない
-- 見出し/section構造を解決できなければfail closed（CTAを出さず災害情報HTMLをそのまま返す）
-- 下流コンテンツは移動・書換しない
+- CTAはfooterのinert `<template>`から自分自身だけをslotへmountする
+- CTAは `slot.appendChild(cta)` により自分自身だけをslot末尾へ置く
+- SNSや天気が後からmountされた場合に備え、CTAはslot直下のchildListだけを監視する
+- 修正が必要な場合もCTA自身だけを末尾へ移し、SNS・天気nodeには触れない
+- current sectionやroot-level page orderをCTA側から変更しない
+- placement timerは使用しない
+- slotが解決できなければfail closedで、災害情報本体へ介入しない
+
+期待順序:
+`current full content -> post-current-actions[SNS, weather, CTA] -> downstream`
+
+天気が未配置の場合:
+`current full content -> post-current-actions[SNS, CTA] -> downstream`
 
 ## GA4
 CTA固有のperformanceのみ追加計測する。
@@ -80,18 +91,20 @@ CTA固有のperformanceのみ追加計測する。
 - 将来 `[bousai_check_cta type="related_inline"]` 等のショートコード生成
 
 ## Phase 1 Acceptance
-1. 全国ページでcurrentセクション直後に1件だけ表示
-2. 都道府県ページでcurrentセクション直後に1件だけ表示
-3. 警報0件ページでも表示
-4. 既存の後続セクション順序を変更しない
-5. `/check/` 同一タブ遷移
-6. PC/SPで承認モック相当のUI
-7. 既存PC追随/SP固定/TOPカード/記事末CTAに回帰なし
-8. CTA 50% visibilityでimpression 1回
-9. CTA clickが `location=disaster_info_inline` で1回
-10. `/check/` のstart/result/affiliate既存Journeyに回帰なし
-11. 災害情報renderer/Content Bridge/Social Growth/Readinessにコード変更なし
-12. merge/deploy/production変更はユーザー明示承認後のみ
+1. 全国ページでroot-level stable slotがcurrent section直後に維持される
+2. 都道府県ページでも同じslot contractが成立する
+3. 天気ありではslot内が `SNS → weather → CTA` となる
+4. 天気なしではslot内が `SNS → CTA` となる
+5. CTAがSNS・天気・current section・後続sectionを移動しない
+6. 警報0件ページでもCTA表示契約が成立する
+7. `/check/` 同一タブ遷移
+8. PC/SPで既存承認UIを維持
+9. 既存PC追随/SP固定/TOPカード/記事末CTAに回帰なし
+10. CTA 50% visibilityでimpression 1回
+11. CTA clickが `location=disaster_info_inline` で1回
+12. `/check/` のstart/result/affiliate既存Journeyに回帰なし
+13. Priority View / SEO P0 root-level placement / Content Bridge / Social Growth / Readiness / 災害情報取得本体にコード変更なし
+14. merge/deploy/production変更はユーザー明示承認後のみ
 
 ## 実装前残件
 - production同版 `bousai-check-cta` v1.3.6 sourceを専用repoへbaseline import
@@ -123,3 +136,17 @@ RC2〜RC4のsection内挿入/placement guard方式は廃止する。
 
 CTA公開スイッチOFF時:
 `current full content -> post-current-actions[SNS] -> downstream content`
+
+
+## v1.4.1-rc1 weather insertion contract
+
+RC5/v1.4.0の「CTAをslot先頭へ固定する」consumer contractは、本項でSUPERSEDED。
+
+- layout owner: root-level stable slot位置だけを所有
+- SNS: 自分自身だけをslotへ配置
+- weather: 自分自身だけをSNSの後ろへ配置
+- CTA: 自分自身だけをslot末尾へ配置・維持
+- CTAは他componentのnodeを移動しない
+- final target: `current -> SNS -> weather -> CTA -> downstream`
+
+この変更ではCTAのコピー、UI、`/check/`、GA4 impression/click契約は変更しない。
