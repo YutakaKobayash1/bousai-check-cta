@@ -5,19 +5,19 @@
   window.__bccDisasterInfoInlineBound = true;
 
   var ROOT_SELECTOR = '.bousai-official-info';
-  var SLOT_SELECTOR = ':scope > [data-bousai-slot="post-current-actions"]';
+  var PRIMARY_SELECTOR = ':scope > .bousai-bridge-section-primary';
+  var NOTICE_SELECTOR = ':scope > .bousai-official-notice';
+  var SNS_SELECTOR = ':scope > #bousai-disaster-share';
   var CTA_SELECTOR = '[data-bcc-surface="disaster_info_inline"]';
   var TEMPLATE_ID = 'bcc-disaster-info-inline-template';
 
   var root = document.querySelector(ROOT_SELECTOR);
 
-  if (!root) return;
-
-  var impressionSeen = new WeakSet();
+  var impressionSent = false;
   var impressionObserver = null;
-  var slotTailObserver = null;
-  var observedSlot = null;
-  var observedCta = null;
+  var impressionTarget = null;
+  var placementObserver = null;
+  var observedRoot = null;
 
   function payload(cta) {
     var link = cta.querySelector('a[data-bcc-location="disaster_info_inline"]');
@@ -28,19 +28,19 @@
   }
 
   function sendImpression(cta) {
-    if (!cta || impressionSeen.has(cta)) return false;
+    if (!cta || impressionSent) return false;
 
     var params = payload(cta);
 
     try {
       if (typeof window.gtag === 'function') {
-        impressionSeen.add(cta);
+        impressionSent = true;
         window.gtag('event', 'bousai_check_cta_impression', params);
         return true;
       }
 
       if (Array.isArray(window.dataLayer)) {
-        impressionSeen.add(cta);
+        impressionSent = true;
         window.dataLayer.push({
           event: 'bousai_check_cta_impression',
           location: params.location,
@@ -56,13 +56,15 @@
   }
 
   function observeImpression(cta) {
-    if (!cta || impressionSeen.has(cta) || impressionObserver) return;
+    if (!cta || impressionSent || (impressionObserver && impressionTarget === cta)) return;
 
     if (!('IntersectionObserver' in window)) {
       // Conservative fallback: do not fabricate an impression.
       return;
     }
 
+    if (impressionObserver) impressionObserver.disconnect();
+    impressionTarget = cta;
     impressionObserver = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
         if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
@@ -79,94 +81,67 @@
   }
 
   /**
-   * Keep only our own node at the tail of the stable layout-owned slot.
-   *
-   * This deliberately does not inspect, move, or reorder SNS/weather nodes.
-   * Their relative order remains owned by those components.
+   * Place only our own node after the root-level primary recommendations.
+   * Without primary, keep the CTA immediately before SNS or the About block.
+   * The stable weather slot and all foreign nodes remain with their owners.
    */
-  function keepOwnNodeAtTail(slot, cta) {
-    if (!slot || !cta || cta.parentNode !== slot) return false;
+  function placeOwnNode(cta) {
+    var primary = root.querySelector(PRIMARY_SELECTOR);
+    var before = primary ? primary.nextSibling :
+      (root.querySelector(SNS_SELECTOR) || root.querySelector(NOTICE_SELECTOR));
+    if (!primary && !before) return false;
 
-    if (slot.lastElementChild !== cta) {
-      slot.appendChild(cta);
+    if (primary) {
+      if (cta.parentNode !== root || primary.nextElementSibling !== cta) {
+        root.insertBefore(cta, before);
+      }
+    } else if (cta.parentNode !== root || cta.nextElementSibling !== before) {
+      root.insertBefore(cta, before);
     }
-
     return true;
   }
 
   /**
-   * Other slot consumers can mount after this CTA. Watch only the slot's direct
-   * child list and, when needed, move only this CTA back to the tail.
+   * Primary/CTA/SNS can appear late. Watch only direct root children and
+   * re-resolve existing CTA nodes so pageshow/re-mount cannot duplicate them.
    */
-  function observeOwnTail(slot, cta) {
+  function observeOwnPlacement() {
     if (!('MutationObserver' in window)) return;
-
-    if (slotTailObserver && observedSlot === slot && observedCta === cta) {
-      return;
-    }
-
-    if (slotTailObserver) {
-      slotTailObserver.disconnect();
-    }
-
-    observedSlot = slot;
-    observedCta = cta;
-
-    slotTailObserver = new MutationObserver(function () {
-      keepOwnNodeAtTail(slot, cta);
-    });
-
-    slotTailObserver.observe(slot, {
-      childList: true
-    });
+    if (placementObserver && observedRoot === root) return;
+    if (placementObserver) placementObserver.disconnect();
+    observedRoot = root;
+    placementObserver = new MutationObserver(mount);
+    placementObserver.observe(root, { childList: true });
   }
 
   /**
-   * Mount only our own node into the stable layout-owned slot.
-   *
-   * Contract:
-   * - layout owner owns the root-level slot position
-   * - SNS owns only its own node
-   * - weather owns only its own node
-   * - CTA owns only its own node and stays at the slot tail
-   * - CTA never moves foreign component nodes
-   *
-   * Expected order when all consumers exist:
-   * SNS -> weather -> CTA
+   * Mount only our own node at the lower placement anchor.
+   * Expected order: primary (when present) -> CTA -> SNS -> About.
+   * SNS v1.4.7-rc1 and the independent-weather candidate are coordinated inputs.
    */
   function mount() {
-    var slot = root.querySelector(SLOT_SELECTOR);
+    root = document.querySelector(ROOT_SELECTOR);
     var template = document.getElementById(TEMPLATE_ID);
-
-    if (!slot || !template || !template.content) return false;
-
-    var cta = slot.querySelector(CTA_SELECTOR);
+    if (!root || !template || !template.content) return false;
+    var cta = root.querySelector(CTA_SELECTOR);
 
     if (!cta) {
       var source = template.content.firstElementChild;
       if (!source) return false;
 
       cta = source.cloneNode(true);
-      slot.appendChild(cta);
-    } else {
-      keepOwnNodeAtTail(slot, cta);
     }
-
-    observeOwnTail(slot, cta);
+    if (!placeOwnNode(cta)) return false;
+    observeOwnPlacement();
     observeImpression(cta);
     return true;
   }
 
-  if (mount()) {
-    return;
-  }
-
   /*
-   * The slot and the inert template are owned by different wp_footer/DOMContentLoaded
-   * writers and can appear in either order. Re-resolve both on every mount attempt.
-   * Observe initial DOM assembly only until both exist, then mount once and disconnect.
+   * Root, lower anchor and inert template can arrive in either order.
+   * Broad observation is limited to initial assembly and stops after mounting.
    */
-  if ('MutationObserver' in window) {
+  if (!mount() && 'MutationObserver' in window) {
     var waitForMountInputs = new MutationObserver(function () {
       if (mount()) {
         waitForMountInputs.disconnect();

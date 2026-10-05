@@ -89,3 +89,4 @@ the CTA consumer makes no placement changes; other consumers retain their own or
 The CTA contract is intentionally agnostic to how SNS and weather establish their
 relative order. It guarantees only that CTA remains after the other slot consumers
 without moving those consumers.
+# Historical baseline; v1.4.2-rc1 uses lower-placement-contract.md instead.

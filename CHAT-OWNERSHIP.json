@@ -1,0 +1,13 @@
+{
+  "management_id": "DEV-15",
+  "owner_stream": "latest-disaster-information-cta",
+  "active_chat": "災害情報#2",
+  "repository": "YutakaKobayash1/bousai-check-cta",
+  "previous_chat": "DEV-15｜防災チェックCTA",
+  "previous_chat_state": "Archived / Read Only",
+  "ownership_transferred_on": "2026-10-05",
+  "cross_repo_write": "DENY",
+  "registry": "https://docs.google.com/spreadsheets/d/1T9H0TFolE7zGZpuWhmn2XNdWnYs_VM4ARKg7DTSSeRM/edit",
+  "production_installation": "user",
+  "tinyfish": "DENY"
+}
