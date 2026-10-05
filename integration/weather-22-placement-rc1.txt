@@ -1,0 +1,801 @@
+/** 検証候補：天気の配置条件だけを変更。本番適用はPC/SPの実表示検収と承認後。今回ステージングは使わない。 */
+/**
+ * 防災のまとめ｜最新災害情報 天気予報 v1.0.3
+ *
+ * 方針:
+ * - 公開ページ表示時には気象庁へアクセスしない。
+ * - WP-Cronでバックグラウンド取得し、正規化したスナップショットだけを表示する。
+ * - 都道府県ページのみ対象。全国ページには表示しない。
+ * - 複数予報区域がある都道府県は、初回にユーザーが表示地域を選ぶ。
+ * - 選択地域はlocalStorageへ保存し、次回から同じ地域を表示する。
+ * - 「のち」は →、「時々」は ／。一時も ／ とし、文字ラベルで意味を保持する。
+ * - 取得失敗時は古いデータを現行として見せ続けず、6時間超で表示停止する。
+ *
+ * 重要:
+ * - このコードはCode Snippets貼り付け用の本体。貼り付け時は先頭の <?php は不要。
+ * - SNS / 防災チェックCTAそのものの実装には触れない。
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
+
+const BOUSAI_WEATHER_V1_VERSION = '1.0.6';
+const BOUSAI_WEATHER_V1_SNAPSHOT_OPTION = 'bousai_weather_forecast_snapshot_v1';
+const BOUSAI_WEATHER_V1_BUILD_OPTION = 'bousai_weather_forecast_build_v1';
+const BOUSAI_WEATHER_V1_LOCK = 'bousai_weather_forecast_batch_lock_v1';
+
+function bousai_weather_v1_prefecture_offices() {
+    return array(
+        '北海道'   => array( '011000','012000','013000','014030','014100','015000','016000','017000' ),
+        '青森県'   => array( '020000' ), '岩手県' => array( '030000' ), '宮城県' => array( '040000' ),
+        '秋田県'   => array( '050000' ), '山形県' => array( '060000' ), '福島県' => array( '070000' ),
+        '茨城県'   => array( '080000' ), '栃木県' => array( '090000' ), '群馬県' => array( '100000' ),
+        '埼玉県'   => array( '110000' ), '千葉県' => array( '120000' ), '東京都' => array( '130000' ),
+        '神奈川県' => array( '140000' ), '新潟県' => array( '150000' ), '富山県' => array( '160000' ),
+        '石川県'   => array( '170000' ), '福井県' => array( '180000' ), '山梨県' => array( '190000' ),
+        '長野県'   => array( '200000' ), '岐阜県' => array( '210000' ), '静岡県' => array( '220000' ),
+        '愛知県'   => array( '230000' ), '三重県' => array( '240000' ), '滋賀県' => array( '250000' ),
+        '京都府'   => array( '260000' ), '大阪府' => array( '270000' ), '兵庫県' => array( '280000' ),
+        '奈良県'   => array( '290000' ), '和歌山県' => array( '300000' ), '鳥取県' => array( '310000' ),
+        '島根県'   => array( '320000' ), '岡山県' => array( '330000' ), '広島県' => array( '340000' ),
+        '山口県'   => array( '350000' ), '徳島県' => array( '360000' ), '香川県' => array( '370000' ),
+        '愛媛県'   => array( '380000' ), '高知県' => array( '390000' ), '福岡県' => array( '400000' ),
+        '佐賀県'   => array( '410000' ), '長崎県' => array( '420000' ), '熊本県' => array( '430000' ),
+        '大分県'   => array( '440000' ), '宮崎県' => array( '450000' ),
+        '鹿児島県' => array( '460040', '460100' ),
+        '沖縄県'   => array( '471000', '472000', '473000', '474000' ),
+    );
+}
+
+
+function bousai_weather_v1_representative_temp_points() {
+    return array(
+        '北海道'=>'札幌',
+        '青森県'=>'青森',
+        '岩手県'=>'盛岡',
+        '宮城県'=>'仙台',
+        '秋田県'=>'秋田',
+        '山形県'=>'山形',
+        '福島県'=>'福島',
+        '茨城県'=>'水戸',
+        '栃木県'=>'宇都宮',
+        '群馬県'=>'前橋',
+        '埼玉県'=>'さいたま',
+        '千葉県'=>'千葉',
+        '東京都'=>'東京',
+        '神奈川県'=>'横浜',
+        '新潟県'=>'新潟',
+        '富山県'=>'富山',
+        '石川県'=>'金沢',
+        '福井県'=>'福井',
+        '山梨県'=>'甲府',
+        '長野県'=>'長野',
+        '岐阜県'=>'岐阜',
+        '静岡県'=>'静岡',
+        '愛知県'=>'名古屋',
+        '三重県'=>'津',
+        '滋賀県'=>'大津',
+        '京都府'=>'京都',
+        '大阪府'=>'大阪',
+        '兵庫県'=>'神戸',
+        '奈良県'=>'奈良',
+        '和歌山県'=>'和歌山',
+        '鳥取県'=>'鳥取',
+        '島根県'=>'松江',
+        '岡山県'=>'岡山',
+        '広島県'=>'広島',
+        '山口県'=>'山口',
+        '徳島県'=>'徳島',
+        '香川県'=>'高松',
+        '愛媛県'=>'松山',
+        '高知県'=>'高知',
+        '福岡県'=>'福岡',
+        '佐賀県'=>'佐賀',
+        '長崎県'=>'長崎',
+        '熊本県'=>'熊本',
+        '大分県'=>'大分',
+        '宮崎県'=>'宮崎',
+        '鹿児島県'=>'鹿児島',
+        '沖縄県'=>'那覇',
+    );
+}
+
+function bousai_weather_v1_representative_area_code( $prefecture, $areas ) {
+    if ( empty( $areas ) || ! is_array( $areas ) ) return '';
+
+    $points = bousai_weather_v1_representative_temp_points();
+    $target = isset( $points[ $prefecture ] ) ? trim( (string) $points[ $prefecture ] ) : '';
+
+    if ( $target !== '' ) {
+        foreach ( $areas as $area_code => $area ) {
+            $point = isset( $area['temp_point'] ) ? trim( (string) $area['temp_point'] ) : '';
+            if ( $point !== '' && $point === $target ) {
+                return (string) $area_code;
+            }
+        }
+    }
+
+    // 万一JMA側の地点名が変わっても初回を空欄にしない。
+    $keys = array_keys( $areas );
+    return ! empty( $keys[0] ) ? (string) $keys[0] : '';
+}
+
+function bousai_weather_v1_all_office_codes() {
+    $set = array();
+    foreach ( bousai_weather_v1_prefecture_offices() as $codes ) {
+        foreach ( $codes as $code ) {
+            $set[ $code ] = true;
+        }
+    }
+    return array_keys( $set );
+}
+
+function bousai_weather_v1_weather_code_label( $code ) {
+    $map = array(
+        '100'=>'晴れ','101'=>'晴れ時々くもり','102'=>'晴れ一時雨','103'=>'晴れ時々雨','104'=>'晴れ一時雪','105'=>'晴れ時々雪','106'=>'晴れ一時雨か雪','107'=>'晴れ時々雨か雪','108'=>'晴れ一時雨か雷雨',
+        '110'=>'晴れのち時々くもり','111'=>'晴れのちくもり','112'=>'晴れのち一時雨','113'=>'晴れのち時々雨','114'=>'晴れのち雨','115'=>'晴れのち一時雪','116'=>'晴れのち時々雪','117'=>'晴れのち雪','118'=>'晴れのち雨か雪','119'=>'晴れのち雨か雷雨',
+        '120'=>'晴れ朝夕一時雨','121'=>'晴れ朝の内一時雨','122'=>'晴れ夕方一時雨','123'=>'晴れ山沿い雷雨','124'=>'晴れ山沿い雪','125'=>'晴れ午後は雷雨','126'=>'晴れ昼頃から雨','127'=>'晴れ夕方から雨','128'=>'晴れ夜は雨','130'=>'朝の内霧のち晴れ','131'=>'晴れ明け方霧','132'=>'晴れ朝夕くもり','140'=>'晴れ時々雨で雷を伴う','160'=>'晴れ一時雪か雨','170'=>'晴れ時々雪か雨','181'=>'晴れのち雪か雨',
+        '200'=>'くもり','201'=>'くもり時々晴れ','202'=>'くもり一時雨','203'=>'くもり時々雨','204'=>'くもり一時雪','205'=>'くもり時々雪','206'=>'くもり一時雨か雪','207'=>'くもり時々雨か雪','208'=>'くもり一時雨か雷雨','209'=>'霧',
+        '210'=>'くもりのち時々晴れ','211'=>'くもりのち晴れ','212'=>'くもりのち一時雨','213'=>'くもりのち時々雨','214'=>'くもりのち雨','215'=>'くもりのち一時雪','216'=>'くもりのち時々雪','217'=>'くもりのち雪','218'=>'くもりのち雨か雪','219'=>'くもりのち雨か雷雨',
+        '220'=>'くもり朝夕一時雨','221'=>'くもり朝の内一時雨','222'=>'くもり夕方一時雨','223'=>'くもり日中時々晴れ','224'=>'くもり昼頃から雨','225'=>'くもり夕方から雨','226'=>'くもり夜は雨','228'=>'くもり昼頃から雪','229'=>'くもり夕方から雪','230'=>'くもり夜は雪','231'=>'くもり海上海岸は霧か霧雨','240'=>'くもり時々雨で雷を伴う','250'=>'くもり時々雪で雷を伴う','260'=>'くもり一時雪か雨','270'=>'くもり時々雪か雨','281'=>'くもりのち雪か雨',
+        '300'=>'雨','301'=>'雨時々晴れ','302'=>'雨時々止む','303'=>'雨時々雪','304'=>'雨か雪','306'=>'大雨','308'=>'雨で暴風を伴う','309'=>'雨一時雪','311'=>'雨のち晴れ','313'=>'雨のちくもり','314'=>'雨のち時々雪','315'=>'雨のち雪','316'=>'雨か雪のち晴れ','317'=>'雨か雪のちくもり','320'=>'朝の内雨のち晴れ','321'=>'朝の内雨のちくもり','322'=>'雨朝晩一時雪','323'=>'雨昼頃から晴れ','324'=>'雨夕方から晴れ','325'=>'雨夜は晴れ','326'=>'雨夕方から雪','327'=>'雨夜は雪','328'=>'雨一時強く降る','329'=>'雨一時みぞれ','340'=>'雪か雨','350'=>'雨で雷を伴う','361'=>'雪か雨のち晴れ','371'=>'雪か雨のちくもり',
+        '400'=>'雪','401'=>'雪時々晴れ','402'=>'雪時々止む','403'=>'雪時々雨','405'=>'大雪','406'=>'風雪強い','407'=>'暴風雪','409'=>'雪一時雨','411'=>'雪のち晴れ','413'=>'雪のちくもり','414'=>'雪のち雨','420'=>'朝の内雪のち晴れ','421'=>'朝の内雪のちくもり','422'=>'雪昼頃から雨','423'=>'雪夕方から雨','425'=>'雪一時強く降る','426'=>'雪のちみぞれ','427'=>'雪一時みぞれ','450'=>'雪で雷を伴う',
+    );
+    $code = (string) $code;
+    if ( isset( $map[ $code ] ) ) {
+        return $map[ $code ];
+    }
+    $first = substr( $code, 0, 1 );
+    if ( $first === '1' ) return '晴れ';
+    if ( $first === '2' ) return 'くもり';
+    if ( $first === '3' ) return '雨';
+    if ( $first === '4' ) return '雪';
+    return '天気';
+}
+
+function bousai_weather_v1_clean_weather_text( $text, $code = '' ) {
+    $text = trim( preg_replace( '/[\x{3000}\s]+/u', ' ', (string) $text ) );
+    if ( $text === '' ) {
+        return bousai_weather_v1_weather_code_label( $code );
+    }
+    // UIでは読みやすくするため、関係語の「後」だけ「のち」に置き換える。
+    $text = preg_replace( '/\s+後\s+/u', ' のち ', $text );
+    return $text;
+}
+
+function bousai_weather_v1_date_key( $iso ) {
+    return strlen( (string) $iso ) >= 10 ? substr( (string) $iso, 0, 10 ) : '';
+}
+
+function bousai_weather_v1_hour( $iso ) {
+    return strlen( (string) $iso ) >= 13 ? (int) substr( (string) $iso, 11, 2 ) : -1;
+}
+
+function bousai_weather_v1_index_areas_by_code( $series ) {
+    $out = array();
+    if ( empty( $series['areas'] ) || ! is_array( $series['areas'] ) ) return $out;
+    foreach ( $series['areas'] as $i => $area ) {
+        $code = isset( $area['area']['code'] ) ? (string) $area['area']['code'] : '';
+        if ( $code !== '' ) $out[ $code ] = array( 'index'=>$i, 'data'=>$area );
+    }
+    return $out;
+}
+
+function bousai_weather_v1_name_key( $name ) {
+    $name = preg_replace( '/[\x{3000}\s]+/u', '', (string) $name );
+    $name = str_replace( array( '地方', '北部', '南部', '東部', '西部', '中部' ), '', $name );
+    return $name;
+}
+
+function bousai_weather_v1_match_weekly_area_index( $short_code, $short_name, $weekly_areas ) {
+    if ( empty( $weekly_areas ) || ! is_array( $weekly_areas ) ) return null;
+
+    foreach ( $weekly_areas as $i => $area ) {
+        if ( isset( $area['area']['code'] ) && (string) $area['area']['code'] === (string) $short_code ) return $i;
+    }
+    if ( count( $weekly_areas ) === 1 ) return 0;
+
+    $short_key = bousai_weather_v1_name_key( $short_name );
+    $best = null;
+    $best_len = 0;
+    foreach ( $weekly_areas as $i => $area ) {
+        $name = isset( $area['area']['name'] ) ? (string) $area['area']['name'] : '';
+        $key  = bousai_weather_v1_name_key( $name );
+        if ( $key === '' || $short_key === '' ) continue;
+        if ( mb_strpos( $short_key, $key ) !== false || mb_strpos( $key, $short_key ) !== false ) {
+            $len = mb_strlen( $key, 'UTF-8' );
+            if ( $len > $best_len ) {
+                $best = $i;
+                $best_len = $len;
+            }
+        }
+    }
+    return $best;
+}
+
+function bousai_weather_v1_normalize_office( $office_code, $docs ) {
+    if ( ! is_array( $docs ) || empty( $docs[0] ) || ! is_array( $docs[0] ) ) return false;
+
+    $short  = $docs[0];
+    $weekly = isset( $docs[1] ) && is_array( $docs[1] ) ? $docs[1] : array();
+    $short_series = isset( $short['timeSeries'] ) && is_array( $short['timeSeries'] ) ? $short['timeSeries'] : array();
+    if ( empty( $short_series[0]['areas'] ) ) return false;
+
+    $weather_s = $short_series[0];
+    $pop_s     = isset( $short_series[1] ) ? $short_series[1] : array();
+    $temp_s    = isset( $short_series[2] ) ? $short_series[2] : array();
+    $pop_by_code = bousai_weather_v1_index_areas_by_code( $pop_s );
+
+    $weekly_series = isset( $weekly['timeSeries'] ) && is_array( $weekly['timeSeries'] ) ? $weekly['timeSeries'] : array();
+    $weekly_weather = isset( $weekly_series[0] ) ? $weekly_series[0] : array();
+    $weekly_temp    = isset( $weekly_series[1] ) ? $weekly_series[1] : array();
+    $weekly_areas   = isset( $weekly_weather['areas'] ) && is_array( $weekly_weather['areas'] ) ? $weekly_weather['areas'] : array();
+
+    $areas = array();
+
+    foreach ( $weather_s['areas'] as $area_index => $weather_area ) {
+        $area_code = isset( $weather_area['area']['code'] ) ? (string) $weather_area['area']['code'] : '';
+        $area_name = isset( $weather_area['area']['name'] ) ? (string) $weather_area['area']['name'] : '';
+        if ( $area_code === '' || $area_name === '' ) continue;
+
+        $days = array();
+        $wdefs = isset( $weather_s['timeDefines'] ) ? $weather_s['timeDefines'] : array();
+        $codes = isset( $weather_area['weatherCodes'] ) ? $weather_area['weatherCodes'] : array();
+        $texts = isset( $weather_area['weathers'] ) ? $weather_area['weathers'] : array();
+        foreach ( $wdefs as $i => $iso ) {
+            $date = bousai_weather_v1_date_key( $iso );
+            if ( $date === '' ) continue;
+            $code = isset( $codes[ $i ] ) ? (string) $codes[ $i ] : '';
+            $text = isset( $texts[ $i ] ) ? (string) $texts[ $i ] : '';
+            $days[ $date ] = array(
+                'date' => $date,
+                'code' => $code,
+                'weather' => bousai_weather_v1_clean_weather_text( $text, $code ),
+                'weather_raw' => trim( preg_replace( '/[\x{3000}\s]+/u', ' ', $text ) ),
+                'pops' => array( '00'=>'', '06'=>'', '12'=>'', '18'=>'' ),
+                'temp_min' => '',
+                'temp_max' => '',
+            );
+        }
+
+        if ( isset( $pop_by_code[ $area_code ] ) ) {
+            $pops = $pop_by_code[ $area_code ]['data'];
+            $pdefs = isset( $pop_s['timeDefines'] ) ? $pop_s['timeDefines'] : array();
+            $vals  = isset( $pops['pops'] ) ? $pops['pops'] : array();
+            foreach ( $pdefs as $i => $iso ) {
+                $date = bousai_weather_v1_date_key( $iso );
+                $hour = bousai_weather_v1_hour( $iso );
+                if ( ! isset( $days[ $date ] ) || ! in_array( $hour, array(0,6,12,18), true ) ) continue;
+                $key = str_pad( (string) $hour, 2, '0', STR_PAD_LEFT );
+                $days[ $date ]['pops'][ $key ] = isset( $vals[ $i ] ) ? (string) $vals[ $i ] : '';
+            }
+        }
+
+        // 気温予報地点は短期予報の一次細分区域と同じ並びで提供されるため、同じindexを対応させる。
+        if ( ! empty( $temp_s['areas'][ $area_index ] ) ) {
+            $temp_area = $temp_s['areas'][ $area_index ];
+            $tdefs = isset( $temp_s['timeDefines'] ) ? $temp_s['timeDefines'] : array();
+            $vals  = isset( $temp_area['temps'] ) ? $temp_area['temps'] : array();
+            foreach ( $tdefs as $i => $iso ) {
+                $date = bousai_weather_v1_date_key( $iso );
+                $hour = bousai_weather_v1_hour( $iso );
+                if ( ! isset( $days[ $date ] ) || ! isset( $vals[ $i ] ) || $vals[ $i ] === '' ) continue;
+                if ( $hour === 0 ) $days[ $date ]['temp_min'] = (string) $vals[ $i ];
+                if ( $hour === 9 ) $days[ $date ]['temp_max'] = (string) $vals[ $i ];
+            }
+        }
+
+        $weekly_days = array();
+        $week_index = bousai_weather_v1_match_weekly_area_index( $area_code, $area_name, $weekly_areas );
+        if ( $week_index !== null && isset( $weekly_areas[ $week_index ] ) ) {
+            $wa = $weekly_areas[ $week_index ];
+            $wdefs = isset( $weekly_weather['timeDefines'] ) ? $weekly_weather['timeDefines'] : array();
+            $wcodes = isset( $wa['weatherCodes'] ) ? $wa['weatherCodes'] : array();
+            $wpops  = isset( $wa['pops'] ) ? $wa['pops'] : array();
+            $rels   = isset( $wa['reliabilities'] ) ? $wa['reliabilities'] : array();
+            $temp_area = isset( $weekly_temp['areas'][ $week_index ] ) ? $weekly_temp['areas'][ $week_index ] : array();
+            $mins = isset( $temp_area['tempsMin'] ) ? $temp_area['tempsMin'] : array();
+            $maxs = isset( $temp_area['tempsMax'] ) ? $temp_area['tempsMax'] : array();
+            foreach ( $wdefs as $i => $iso ) {
+                $date = bousai_weather_v1_date_key( $iso );
+                if ( $date === '' ) continue;
+                $code = isset( $wcodes[ $i ] ) ? (string) $wcodes[ $i ] : '';
+                $weekly_days[] = array(
+                    'date' => $date,
+                    'code' => $code,
+                    'weather' => bousai_weather_v1_weather_code_label( $code ),
+                    'pop' => isset( $wpops[ $i ] ) ? (string) $wpops[ $i ] : '',
+                    'reliability' => isset( $rels[ $i ] ) ? (string) $rels[ $i ] : '',
+                    'temp_min' => isset( $mins[ $i ] ) ? (string) $mins[ $i ] : '',
+                    'temp_max' => isset( $maxs[ $i ] ) ? (string) $maxs[ $i ] : '',
+                );
+            }
+        }
+
+        $areas[ $area_code ] = array(
+            'code' => $area_code,
+            'name' => $area_name,
+            'office_code' => (string) $office_code,
+            'temp_point' => isset( $temp_s['areas'][ $area_index ]['area']['name'] ) ? (string) $temp_s['areas'][ $area_index ]['area']['name'] : '',
+            'days' => array_values( $days ),
+            'weekly' => $weekly_days,
+        );
+    }
+
+    return array(
+        'office_code' => (string) $office_code,
+        'publishing_office' => isset( $short['publishingOffice'] ) ? (string) $short['publishingOffice'] : '気象庁',
+        'short_report_at' => isset( $short['reportDatetime'] ) ? (string) $short['reportDatetime'] : '',
+        'weekly_report_at' => isset( $weekly['reportDatetime'] ) ? (string) $weekly['reportDatetime'] : '',
+        'fetched_at' => time(),
+        'areas' => $areas,
+    );
+}
+
+function bousai_weather_v1_fetch_office( $office_code ) {
+    $url = 'https://www.jma.go.jp/bosai/forecast/data/forecast/' . rawurlencode( $office_code ) . '.json';
+    $response = wp_safe_remote_get( $url, array(
+        'timeout' => 4,
+        'redirection' => 1,
+        'user-agent' => 'Bousai-Matome/1.0; ' . home_url( '/' ),
+        'headers' => array( 'Accept' => 'application/json' ),
+    ) );
+    if ( is_wp_error( $response ) ) return false;
+    if ( 200 !== (int) wp_remote_retrieve_response_code( $response ) ) return false;
+    $body = wp_remote_retrieve_body( $response );
+    if ( $body === '' ) return false;
+    $docs = json_decode( $body, true );
+    if ( JSON_ERROR_NONE !== json_last_error() || ! is_array( $docs ) ) return false;
+    return bousai_weather_v1_normalize_office( $office_code, $docs );
+}
+
+function bousai_weather_v1_start_refresh() {
+    $build = get_option( BOUSAI_WEATHER_V1_BUILD_OPTION, array() );
+    if ( is_array( $build ) && ! empty( $build['remaining'] ) && ! empty( $build['started_at'] ) && ( time() - (int) $build['started_at'] ) < 1800 ) {
+        return;
+    }
+
+    $active = get_option( BOUSAI_WEATHER_V1_SNAPSHOT_OPTION, array() );
+    $existing = is_array( $active ) && ! empty( $active['offices'] ) && is_array( $active['offices'] ) ? $active['offices'] : array();
+    $build = array(
+        'version' => BOUSAI_WEATHER_V1_VERSION,
+        'started_at' => time(),
+        'remaining' => bousai_weather_v1_all_office_codes(),
+        'offices' => $existing,
+        'failed' => array(),
+    );
+    update_option( BOUSAI_WEATHER_V1_BUILD_OPTION, $build, false );
+
+    if ( ! wp_next_scheduled( 'bousai_weather_v1_process_batch_event' ) ) {
+        wp_schedule_single_event( time() + 2, 'bousai_weather_v1_process_batch_event' );
+    }
+}
+
+function bousai_weather_v1_process_batch() {
+    if ( get_transient( BOUSAI_WEATHER_V1_LOCK ) ) return;
+    set_transient( BOUSAI_WEATHER_V1_LOCK, 1, 90 );
+
+    try {
+        $build = get_option( BOUSAI_WEATHER_V1_BUILD_OPTION, array() );
+        if ( ! is_array( $build ) || empty( $build['remaining'] ) || ! is_array( $build['remaining'] ) ) return;
+
+        $batch = array_splice( $build['remaining'], 0, 6 );
+        foreach ( $batch as $office_code ) {
+            $normalized = bousai_weather_v1_fetch_office( $office_code );
+            if ( $normalized ) {
+                $build['offices'][ $office_code ] = $normalized;
+                unset( $build['failed'][ $office_code ] );
+            } else {
+                $build['failed'][ $office_code ] = time();
+            }
+        }
+        update_option( BOUSAI_WEATHER_V1_BUILD_OPTION, $build, false );
+
+        // 取得済みofficeは全国一巡の完了を待たず表示用スナップショットへ反映する。
+        $partial = get_option( BOUSAI_WEATHER_V1_SNAPSHOT_OPTION, array() );
+        if ( ! is_array( $partial ) ) $partial = array();
+        $partial['version'] = BOUSAI_WEATHER_V1_VERSION;
+        $partial['offices'] = isset( $build['offices'] ) && is_array( $build['offices'] ) ? $build['offices'] : array();
+        $partial['failed'] = isset( $build['failed'] ) && is_array( $build['failed'] ) ? $build['failed'] : array();
+        if ( ! isset( $partial['updated_at'] ) ) $partial['updated_at'] = 0;
+        update_option( BOUSAI_WEATHER_V1_SNAPSHOT_OPTION, $partial, false );
+
+        if ( ! empty( $build['remaining'] ) ) {
+            wp_schedule_single_event( time() + 12, 'bousai_weather_v1_process_batch_event' );
+            return;
+        }
+
+        $snapshot = array(
+            'version' => BOUSAI_WEATHER_V1_VERSION,
+            'updated_at' => time(),
+            'offices' => isset( $build['offices'] ) && is_array( $build['offices'] ) ? $build['offices'] : array(),
+            'failed' => isset( $build['failed'] ) && is_array( $build['failed'] ) ? $build['failed'] : array(),
+        );
+        update_option( BOUSAI_WEATHER_V1_SNAPSHOT_OPTION, $snapshot, false );
+        delete_option( BOUSAI_WEATHER_V1_BUILD_OPTION );
+    } finally {
+        delete_transient( BOUSAI_WEATHER_V1_LOCK );
+    }
+}
+add_action( 'bousai_weather_v1_process_batch_event', 'bousai_weather_v1_process_batch' );
+
+function bousai_weather_v1_ensure_schedule() {
+    if ( ! wp_next_scheduled( 'bousai_weather_v1_refresh_event' ) ) {
+        wp_schedule_event( time() + 120, 'hourly', 'bousai_weather_v1_refresh_event' );
+    }
+}
+add_action( 'init', 'bousai_weather_v1_ensure_schedule', 30 );
+add_action( 'bousai_weather_v1_refresh_event', 'bousai_weather_v1_start_refresh' );
+
+// 既存の最新災害情報5分更新が動いている環境では、そのタイミングでも「1時間以上古いか」だけ確認する。
+function bousai_weather_v1_maybe_start_refresh() {
+    $snapshot = get_option( BOUSAI_WEATHER_V1_SNAPSHOT_OPTION, array() );
+    $updated = is_array( $snapshot ) && ! empty( $snapshot['updated_at'] ) ? (int) $snapshot['updated_at'] : 0;
+    if ( ! $updated || ( time() - $updated ) >= 3300 ) {
+        bousai_weather_v1_start_refresh();
+    }
+}
+add_action( 'bousai_matome_refresh_snapshot_event', 'bousai_weather_v1_maybe_start_refresh', 90 );
+
+// Code Snippets導入直後は、管理画面アクセスをきっかけにバックグラウンド初回取得だけ予約する。
+function bousai_weather_v1_admin_bootstrap() {
+    if ( ! current_user_can( 'manage_options' ) ) return;
+    $snapshot = get_option( BOUSAI_WEATHER_V1_SNAPSHOT_OPTION, array() );
+    if ( empty( $snapshot['offices'] ) ) {
+        bousai_weather_v1_start_refresh();
+    }
+}
+add_action( 'admin_init', 'bousai_weather_v1_admin_bootstrap', 50 );
+
+// 初回表示や地域単位の欠損時は、その都道府県だけをバックグラウンドで優先取得する。
+// 公開ページのレスポンス中には気象庁へアクセスしない。
+function bousai_weather_v1_refresh_prefecture( $prefecture ) {
+    $prefecture = (string) $prefecture;
+    $map = bousai_weather_v1_prefecture_offices();
+    if ( empty( $map[ $prefecture ] ) || ! is_array( $map[ $prefecture ] ) ) return;
+
+    $snapshot = get_option( BOUSAI_WEATHER_V1_SNAPSHOT_OPTION, array() );
+    if ( ! is_array( $snapshot ) ) $snapshot = array();
+    if ( empty( $snapshot['offices'] ) || ! is_array( $snapshot['offices'] ) ) $snapshot['offices'] = array();
+    if ( empty( $snapshot['failed'] ) || ! is_array( $snapshot['failed'] ) ) $snapshot['failed'] = array();
+
+    foreach ( $map[ $prefecture ] as $office_code ) {
+        $normalized = bousai_weather_v1_fetch_office( $office_code );
+        if ( $normalized ) {
+            $snapshot['offices'][ $office_code ] = $normalized;
+            unset( $snapshot['failed'][ $office_code ] );
+        } else {
+            $snapshot['failed'][ $office_code ] = time();
+        }
+    }
+
+    $snapshot['version'] = BOUSAI_WEATHER_V1_VERSION;
+    if ( ! isset( $snapshot['updated_at'] ) ) $snapshot['updated_at'] = 0;
+    update_option( BOUSAI_WEATHER_V1_SNAPSHOT_OPTION, $snapshot, false );
+    delete_transient( 'bousai_weather_v1_prefetch_' . md5( $prefecture ) );
+}
+add_action( 'bousai_weather_v1_refresh_prefecture_event', 'bousai_weather_v1_refresh_prefecture', 10, 1 );
+
+function bousai_weather_v1_schedule_prefecture_refresh( $prefecture ) {
+    $prefecture = (string) $prefecture;
+    $map = bousai_weather_v1_prefecture_offices();
+    if ( empty( $map[ $prefecture ] ) ) return;
+
+    $lock = 'bousai_weather_v1_prefetch_' . md5( $prefecture );
+    if ( get_transient( $lock ) ) return;
+    set_transient( $lock, 1, 90 );
+
+    $args = array( $prefecture );
+    if ( ! wp_next_scheduled( 'bousai_weather_v1_refresh_prefecture_event', $args ) ) {
+        wp_schedule_single_event( time(), 'bousai_weather_v1_refresh_prefecture_event', $args );
+    }
+
+    if ( function_exists( 'spawn_cron' ) ) {
+        spawn_cron( time() );
+    }
+}
+
+function bousai_weather_v1_current_prefecture() {
+    if ( is_admin() ) return '';
+
+    // 全国 /disaster-info/ には絶対に出さない。
+    // 仮想都道府県URL /disaster-info/{slug}/ のときだけ対象にする。
+    $uri  = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
+    $path = wp_parse_url( $uri, PHP_URL_PATH );
+    $path = is_string( $path ) ? trim( $path, '/' ) : '';
+
+    if ( ! preg_match( '#^disaster-info/([a-z0-9_-]+)$#', $path, $m ) ) {
+        return '';
+    }
+
+    $slug = sanitize_title( (string) $m[1] );
+
+    if ( function_exists( 'bousai_matome_region_name_from_slug' ) ) {
+        $region = trim( (string) bousai_matome_region_name_from_slug( $slug ) );
+        if ( $region !== '' ) return $region;
+    }
+
+    return '';
+}
+
+function bousai_weather_v1_payload_for_prefecture( $prefecture ) {
+    $map = bousai_weather_v1_prefecture_offices();
+    if ( empty( $map[ $prefecture ] ) ) return false;
+
+    $snapshot = get_option( BOUSAI_WEATHER_V1_SNAPSHOT_OPTION, array() );
+    if ( ! is_array( $snapshot ) || empty( $snapshot['offices'] ) || ! is_array( $snapshot['offices'] ) ) return false;
+
+    $areas = array();
+    $latest_fetch = 0;
+    foreach ( $map[ $prefecture ] as $office_code ) {
+        if ( empty( $snapshot['offices'][ $office_code ] ) || ! is_array( $snapshot['offices'][ $office_code ] ) ) continue;
+        $office = $snapshot['offices'][ $office_code ];
+        $fetched = isset( $office['fetched_at'] ) ? (int) $office['fetched_at'] : 0;
+        if ( $fetched > $latest_fetch ) $latest_fetch = $fetched;
+
+        // 一部地域だけ取得に失敗した場合、その地域の古い予報を他地域の新しい取得時刻で隠さない。
+        // 各予報区ごとに6時間を超えた保存データは表示対象から外す。
+        if ( ! $fetched || ( time() - $fetched ) > 21600 ) continue;
+        if ( empty( $office['areas'] ) || ! is_array( $office['areas'] ) ) continue;
+        foreach ( $office['areas'] as $area_code => $area ) {
+            $area['short_report_at'] = isset( $office['short_report_at'] ) ? (string) $office['short_report_at'] : '';
+            $area['weekly_report_at'] = isset( $office['weekly_report_at'] ) ? (string) $office['weekly_report_at'] : '';
+            $area['fetched_at'] = $fetched;
+            $areas[ $area_code ] = $area;
+        }
+    }
+    if ( empty( $areas ) ) return false;
+
+    // 全予報区が古い場合は何も表示しない。上で地域単位の鮮度判定も済ませている。
+    if ( empty( $areas ) || ! $latest_fetch ) return false;
+
+    $default_area_code = bousai_weather_v1_representative_area_code( $prefecture, $areas );
+
+    return array(
+        'version' => BOUSAI_WEATHER_V1_VERSION,
+        'prefecture' => $prefecture,
+        'generated_at' => time(),
+        'today_jst' => wp_date( 'Y-m-d', time(), new DateTimeZone( 'Asia/Tokyo' ) ),
+        'default_area_code' => $default_area_code,
+        'areas' => array_values( $areas ),
+    );
+}
+
+function bousai_weather_v1_is_target_page() {
+    if ( is_admin() ) return false;
+    if ( function_exists( 'bousai_matome_is_disaster_info_page' ) && ! bousai_matome_is_disaster_info_page() ) return false;
+    return bousai_weather_v1_current_prefecture() !== '';
+}
+
+function bousai_weather_v1_footer() {
+    if ( ! bousai_weather_v1_is_target_page() ) return;
+    $prefecture = bousai_weather_v1_current_prefecture();
+    $payload = bousai_weather_v1_payload_for_prefecture( $prefecture );
+
+    if ( ! $payload ) {
+        bousai_weather_v1_schedule_prefecture_refresh( $prefecture );
+        ?>
+<style id="bousai-weather-v1-style">
+.bw-v1{margin:26px 0 30px;color:#20323a;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif}
+.bw-v1 *{box-sizing:border-box}
+.bw-v1__panel{overflow:hidden;border:1px solid #d8e5ea;border-radius:20px;background:#fff;box-shadow:0 10px 28px rgba(31,63,78,.08)}
+.bw-v1__head{padding:18px 22px 16px;background:linear-gradient(180deg,#f5fbfe 0%,#fff 100%)}
+.bw-v1__eyebrow{margin:0 0 4px;color:#5f8190;font-size:12px;font-weight:800;letter-spacing:.05em}
+.bw-v1__title{margin:0;color:#163945;font-size:22px;font-weight:850;line-height:1.35}
+.bw-v1__loading{margin:0;padding:0 22px 19px;color:#526b75;font-size:13px;line-height:1.65}
+@media(max-width:640px){.bw-v1__panel{border-radius:16px}.bw-v1__head{padding:17px 16px 12px}.bw-v1__loading{padding:0 16px 16px}}
+</style>
+<script id="bousai-weather-v1-script">
+(function(){
+'use strict';
+var root=document.querySelector('.bousai-official-info');
+if(!root)return;
+var ID='bousai-weather-v1';
+var box=document.createElement('section');
+box.id=ID; box.className='bw-v1'; box.setAttribute('aria-label','地域の天気と今後の見通し');
+box.innerHTML='<div class="bw-v1__panel"><div class="bw-v1__head"><div class="bw-v1__eyebrow"><?php echo esc_js( $prefecture ); ?>の天気</div><div class="bw-v1__title">この地域の天気と今後の見通し</div></div><p class="bw-v1__loading">天気情報を準備しています。少し時間をおいて再読み込みしてください。</p></div>';
+function place(){
+ var slot=root.querySelector(':scope > [data-bousai-slot="post-current-actions"]');
+ if(!slot)return false;
+ // Weather keeps its original slot; it no longer depends on SNS or CTA mounting.
+ // Move only the weather node, never the slot, CTA, SNS, or source sections.
+ var cta=slot.querySelector(':scope > [data-bcc-surface="disaster_info_inline"]');
+ var weather=document.getElementById(ID)||box;
+ if(cta){
+   if(weather.parentNode!==slot || weather.nextElementSibling!==cta)slot.insertBefore(weather,cta);
+ }else if(weather.parentNode!==slot || slot.firstElementChild!==weather){
+   slot.insertBefore(weather,slot.firstChild);
+ }
+ return weather.parentNode===slot;
+}
+if(place())return;
+if('MutationObserver' in window){
+ var obs=new MutationObserver(function(){if(place())obs.disconnect();});
+ obs.observe(root,{childList:true,subtree:true});
+ window.setTimeout(function(){obs.disconnect();},3500);
+}
+})();
+</script>
+        <?php
+        return;
+    }
+
+    $json = wp_json_encode( $payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT );
+    ?>
+<style id="bousai-weather-v1-style">
+.bw-v1{margin:26px 0 30px;color:#20323a;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif}
+.bw-v1 *{box-sizing:border-box}
+.bw-v1__panel{overflow:hidden;border:1px solid #d8e5ea;border-radius:20px;background:#fff;box-shadow:0 10px 28px rgba(31,63,78,.08)}
+.bw-v1__head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding:20px 22px 14px;background:linear-gradient(180deg,#f5fbfe 0%,#fff 100%)}
+.bw-v1__eyebrow{margin:0 0 4px;color:#5f8190;font-size:12px;font-weight:800;letter-spacing:.05em}
+.bw-v1__title{margin:0;color:#163945;font-size:22px;font-weight:850;line-height:1.35}
+.bw-v1__desc{margin:5px 0 0;color:#73838a;font-size:13px;line-height:1.55}
+.bw-v1__selector{flex:0 0 245px;max-width:245px}
+.bw-v1__selector-label{display:block;margin:0 0 5px;color:#607983;font-size:11px;font-weight:800}
+.bw-v1__select{display:block;width:100%;max-width:245px;border:1px solid #c8dce4;border-radius:999px;background:#fff;color:#275366;padding:9px 34px 9px 13px;font-size:13px;font-weight:800}
+.bw-v1__selector-note{display:block;margin:6px 2px 0;color:#7b8b91;font-size:11px;line-height:1.45}
+.bw-v1__area-static{display:block;width:100%;border:1px solid #d8e5ea;border-radius:999px;background:#fff;color:#3c5e6b;padding:9px 13px;font-size:13px;font-weight:800}
+.bw-v1__main{display:none}
+.bw-v1__today{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 22px 16px}
+.bw-v1__card{min-width:0;padding:14px 15px;border:1px solid #e1ebef;border-radius:16px;background:#fff}
+.bw-v1__card.is-today{border-color:#bed8e3;box-shadow:0 6px 16px rgba(38,94,115,.07)}
+.bw-v1__card.is-heavy{border-color:#c8dce7;background:#f6fafc}
+.bw-v1__top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.bw-v1__label{color:#355b69;font-size:13px;font-weight:850}
+.bw-v1__date{color:#819097;font-size:12px}
+.bw-v1__daymain{display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:center;margin-top:9px}
+.bw-v1__symbols{display:flex;align-items:center;gap:4px;white-space:nowrap}
+.bw-v1__symbol{font-size:36px;line-height:1}
+.bw-v1__sep{display:inline-flex;align-items:center;justify-content:center;min-width:18px;color:#6b7d84;font-size:24px;font-weight:800;line-height:1}
+.bw-v1__sep.is-slash{font-size:27px;font-weight:500}
+.bw-v1__dayinfo{min-width:0}
+.bw-v1__weather{color:#243f49;font-size:17px;font-weight:850;line-height:1.3}
+.bw-v1__temp{display:flex;align-items:baseline;gap:8px;margin-top:5px}
+.bw-v1__high{color:#d56a4b;font-size:24px;font-weight:850}
+.bw-v1__low{color:#4f819a;font-size:16px;font-weight:800}
+.bw-v1__pops{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:10px;padding-top:9px;border-top:1px solid #edf2f4}
+.bw-v1__pops div{text-align:center;color:#7d8c92;font-size:10px;line-height:1.3}
+.bw-v1__pops strong{display:block;margin-top:2px;color:#365c69;font-size:13px}
+.bw-v1__week{padding:15px 22px 18px;border-top:1px solid #e7eff2;background:#fbfdfe}
+.bw-v1__weekhead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.bw-v1__weekhead strong{color:#294c59;font-size:14px}
+.bw-v1__weekhead span{color:#849197;font-size:11px}
+.bw-v1__weekgrid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.bw-v1__mini{min-width:0;padding:11px 7px;border:1px solid #e2eaee;border-radius:13px;background:#fff;text-align:center}
+.bw-v1__mini.is-heavy{border-color:#c8dce7;background:#f3f8fb}
+.bw-v1__miniday{color:#4d6670;font-size:12px;font-weight:850}
+.bw-v1__miniicons{display:flex;align-items:center;justify-content:center;gap:3px;min-height:34px;margin:6px 0 4px;font-size:21px;line-height:1}
+.bw-v1__miniicons .bw-v1__sep{min-width:13px;font-size:14px}.bw-v1__miniicons .bw-v1__sep.is-slash{font-size:18px}
+.bw-v1__mininame{min-height:28px;color:#3c5660;font-size:10px;font-weight:800;line-height:1.3}
+.bw-v1__minitemp{margin-top:4px;color:#546c75;font-size:12px;font-weight:800}
+.bw-v1__minipop{margin-top:3px;color:#6c8793;font-size:10px}
+.bw-v1__foot{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:0 22px 18px;color:#829198;font-size:11px}
+.bw-v1__source{font-weight:700;color:#647981}
+@media(max-width:640px){
+ .bw-v1__panel{border-radius:16px}.bw-v1__head{display:block;padding:17px 16px 12px}.bw-v1__selector{max-width:none;margin-top:11px}.bw-v1__select{max-width:none;width:100%}
+ .bw-v1__selector-note{margin-top:6px}.bw-v1__today{grid-template-columns:1fr;padding:0 16px 14px}.bw-v1__card{padding:13px 14px}.bw-v1__daymain{gap:16px}
+ .bw-v1__symbol{font-size:31px}.bw-v1__sep{font-size:21px;min-width:15px}.bw-v1__sep.is-slash{font-size:23px}.bw-v1__weather{font-size:16px}.bw-v1__high{font-size:22px}
+ .bw-v1__week{padding:14px 16px 16px}.bw-v1__weekgrid{display:flex;overflow-x:auto;gap:8px;padding-bottom:3px;scroll-snap-type:x proximity}.bw-v1__mini{min-width:104px;scroll-snap-align:start}
+ .bw-v1__foot{display:block;padding:0 16px 16px}.bw-v1__source{display:block;margin-bottom:4px}
+}
+</style>
+<script id="bousai-weather-v1-script">
+(function(){
+'use strict';
+var DATA = <?php echo $json; ?>;
+var ROOT_SEL = '.bousai-official-info';
+var ID = 'bousai-weather-v1';
+var STORAGE = 'bousai_weather_area:' + DATA.prefecture;
+var root = document.querySelector(ROOT_SEL);
+if(!root || !DATA.areas || !DATA.areas.length) return;
+
+function el(tag, cls, text){ var n=document.createElement(tag); if(cls)n.className=cls; if(text!==undefined)n.textContent=text; return n; }
+function dateObj(s){ var p=s.split('-'); return new Date(Number(p[0]),Number(p[1])-1,Number(p[2])); }
+function dateLabel(s){ var d=dateObj(s); var wd=['日','月','火','水','木','金','土'][d.getDay()]; return (d.getMonth()+1)+'月'+d.getDate()+'日（'+wd+'）'; }
+function miniDate(s){ var d=dateObj(s); var wd=['日','月','火','水','木','金','土'][d.getDay()]; return d.getDate()+'日 '+wd; }
+function isoDate(d){ var y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0'); return y+'-'+m+'-'+day; }
+function todayKey(){ return DATA.today_jst || isoDate(new Date()); }
+function addDays(key,n){ var d=dateObj(key); d.setDate(d.getDate()+n); return isoDate(d); }
+function normalizeWeather(s){ return (s||'').replace(/\s+/g,' ').trim(); }
+function iconFor(type, heavy){ if(type==='sun')return '☀️'; if(type==='cloud')return '☁️'; if(type==='snow')return '🌨️'; if(type==='thunder')return '⛈️'; if(type==='rain')return heavy?'🌧️':'🌧️'; return '☁️'; }
+function visual(weather, code){
+ var s=normalizeWeather(weather); var types=[]; var tests=[['sun',/晴/],['cloud',/くもり|曇/],['rain',/雨|みぞれ/],['snow',/雪/],['thunder',/雷/]];
+ var positions=[]; tests.forEach(function(t){ var i=s.search(t[1]); if(i>=0)positions.push({type:t[0],i:i}); });
+ positions.sort(function(a,b){return a.i-b.i;}); positions.forEach(function(x){ if(types.indexOf(x.type)<0)types.push(x.type); });
+ if(!types.length){ var f=String(code||'').charAt(0); types=[f==='1'?'sun':f==='2'?'cloud':f==='3'?'rain':f==='4'?'snow':'cloud']; }
+ // 雷は補助現象として末尾へ。主天気2種までに抑える。
+ if(types.length>2) types=types.slice(0,2);
+ var rel=''; if(types.length>1){ if(/のち|後/.test(s))rel='arrow'; else if(/時々|一時/.test(s))rel='slash'; }
+ return {types:types,relation:rel,heavy:/大雨|激しく|非常に激しく|猛烈/.test(s)};
+}
+function renderSymbols(holder, weather, code, mini){
+ var v=visual(weather,code); v.types.forEach(function(t,i){ if(i>0 && v.relation){ var sep=el('span','bw-v1__sep'+(v.relation==='slash'?' is-slash':''),v.relation==='slash'?'／':'→'); holder.appendChild(sep); } var sp=el('span',mini?'':'bw-v1__symbol',iconFor(t,v.heavy)); holder.appendChild(sp); });
+ holder.setAttribute('aria-label', weather || '天気');
+}
+function tempText(v,suffix){ return v!=='' && v!==null && v!==undefined ? String(v)+(suffix||'℃') : '—'; }
+function findDay(area,key){ return (area.days||[]).find(function(d){return d.date===key;}) || null; }
+function buildDayCard(area,key,label,klass){
+ var d=findDay(area,key); if(!d) return null;
+ var v=visual(d.weather,d.code);
+ var cardClass='bw-v1__card'+(klass?' '+klass:'')+(v.heavy?' is-heavy':'');
+ var card=el('article',cardClass);
+ var top=el('div','bw-v1__top'); top.appendChild(el('span','bw-v1__label',label)); top.appendChild(el('span','bw-v1__date',dateLabel(key))); card.appendChild(top);
+ var main=el('div','bw-v1__daymain'); var symbols=el('div','bw-v1__symbols'); renderSymbols(symbols,d.weather,d.code,false); main.appendChild(symbols);
+ var info=el('div','bw-v1__dayinfo'); info.appendChild(el('div','bw-v1__weather',d.weather||'—')); var temps=el('div','bw-v1__temp'); temps.appendChild(el('span','bw-v1__high',tempText(d.temp_max))); temps.appendChild(el('span','bw-v1__low',tempText(d.temp_min))); info.appendChild(temps); main.appendChild(info); card.appendChild(main);
+ var pops=el('div','bw-v1__pops'); [['00','0–6時'],['06','6–12時'],['12','12–18時'],['18','18–24時']].forEach(function(x){ var cell=el('div','',x[1]); var st=el('strong','',d.pops&&d.pops[x[0]]!==''?d.pops[x[0]]+'%':'—'); cell.appendChild(st); pops.appendChild(cell); }); card.appendChild(pops);
+ return card;
+}
+function buildMini(d){ var v=visual(d.weather,d.code); var c=el('div','bw-v1__mini'+(v.heavy?' is-heavy':'')); c.appendChild(el('div','bw-v1__miniday',miniDate(d.date))); var icons=el('div','bw-v1__miniicons'); renderSymbols(icons,d.weather,d.code,true); c.appendChild(icons); c.appendChild(el('div','bw-v1__mininame',d.weather||'—')); c.appendChild(el('div','bw-v1__minitemp',tempText(d.temp_max,'°')+' / '+tempText(d.temp_min,'°'))); c.appendChild(el('div','bw-v1__minipop','降水 '+(d.pop!==''?d.pop+'%':'—'))); return c; }
+function reportLabel(area){
+ var raw=area.short_report_at||area.weekly_report_at||''; if(!raw)return '';
+ try{
+   var d=new Date(raw);
+   var parts=new Intl.DateTimeFormat('ja-JP',{timeZone:'Asia/Tokyo',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(d);
+   var m={}, i; for(i=0;i<parts.length;i++){ if(parts[i].type!=='literal')m[parts[i].type]=parts[i].value; }
+   return '予報発表 '+m.month+'月'+m.day+'日 '+m.hour+':'+m.minute;
+ }catch(e){return '';}
+}
+
+var box=el('section','bw-v1'); box.id=ID; box.setAttribute('aria-label','地域の天気と今後の見通し');
+var panel=el('div','bw-v1__panel'); box.appendChild(panel); var head=el('div','bw-v1__head'); var htxt=el('div',''); htxt.appendChild(el('div','bw-v1__eyebrow',DATA.prefecture+'の天気')); htxt.appendChild(el('div','bw-v1__title','この地域の天気と今後の見通し')); htxt.appendChild(el('p','bw-v1__desc','今日・明日の予報と、この先の天気をまとめて確認できます。')); head.appendChild(htxt);
+var selector=el('div','bw-v1__selector');
+selector.appendChild(el('span','bw-v1__selector-label','表示地域'));
+var select=document.createElement('select'); select.className='bw-v1__select'; select.setAttribute('aria-label','天気を表示する地域');
+DATA.areas.forEach(function(a){ var o=document.createElement('option'); o.value=a.code; o.textContent=a.name; select.appendChild(o); });
+if(DATA.areas.length>1){
+ selector.appendChild(select);
+ selector.appendChild(el('span','bw-v1__selector-note','最初は県庁所在地を含む地域を表示しています。お住まいの地域に変更できます。'));
+}else{
+ var only=DATA.areas[0]||null;
+ selector.appendChild(el('span','bw-v1__area-static',only?only.name:''));
+ select.style.display='none';
+ selector.appendChild(select);
+}
+head.appendChild(selector); panel.appendChild(head);
+var main=el('div','bw-v1__main'); var today=el('div','bw-v1__today'); var week=el('div','bw-v1__week'); var weekhead=el('div','bw-v1__weekhead'); weekhead.appendChild(el('strong','','週間予報')); weekhead.appendChild(el('span','','明後日〜7日先')); var weekgrid=el('div','bw-v1__weekgrid'); week.appendChild(weekhead); week.appendChild(weekgrid); var foot=el('div','bw-v1__foot'); foot.appendChild(el('span','bw-v1__source','情報源：気象庁')); var rpt=el('span','bw-v1__report',''); foot.appendChild(rpt); main.appendChild(today); main.appendChild(week); main.appendChild(foot); panel.appendChild(main);
+
+function render(code){
+ var area=DATA.areas.find(function(a){return a.code===code;}); if(!area)return;
+ today.textContent=''; weekgrid.textContent=''; var tk=todayKey(), tom=addDays(tk,1), after=addDays(tk,2); var c1=buildDayCard(area,tk,'今日','is-today'), c2=buildDayCard(area,tom,'明日',''); if(c1)today.appendChild(c1); if(c2)today.appendChild(c2);
+ var weekly=(area.weekly||[]).filter(function(d){return d.date>=after;}).slice(0,6); weekly.forEach(function(d){weekgrid.appendChild(buildMini(d));}); week.style.display=weekly.length?'block':'none'; rpt.textContent=reportLabel(area);
+ main.style.display='block'; select.value=code;
+}
+select.addEventListener('change',function(){
+ if(!this.value)return;
+ render(this.value);
+ try{localStorage.setItem(STORAGE,this.value);}catch(e){}
+});
+var saved=''; try{saved=localStorage.getItem(STORAGE)||'';}catch(e){}
+var initial='';
+if(saved && DATA.areas.some(function(a){return a.code===saved;})){
+ initial=saved;
+}else if(DATA.default_area_code && DATA.areas.some(function(a){return a.code===DATA.default_area_code;})){
+ initial=DATA.default_area_code;
+}else if(DATA.areas.length){
+ initial=DATA.areas[0].code;
+}
+if(initial){render(initial);}
+
+function place(){
+ var slot=root.querySelector(':scope > [data-bousai-slot="post-current-actions"]');
+ if(!slot)return false;
+ // Weather keeps its original slot; it no longer depends on SNS or CTA mounting.
+ // Move only the weather node, never the slot, CTA, SNS, or source sections.
+ var cta=slot.querySelector(':scope > [data-bcc-surface="disaster_info_inline"]');
+ var weather=document.getElementById(ID)||box;
+ if(cta){
+   if(weather.parentNode!==slot || weather.nextElementSibling!==cta)slot.insertBefore(weather,cta);
+ }else if(weather.parentNode!==slot || slot.firstElementChild!==weather){
+   slot.insertBefore(weather,slot.firstChild);
+ }
+ return weather.parentNode===slot;
+}
+if(place())return;
+if('MutationObserver' in window){ var obs=new MutationObserver(function(){if(place())obs.disconnect();}); obs.observe(root,{childList:true,subtree:true}); window.setTimeout(function(){obs.disconnect();},3500); }
+})();
+</script>
+    <?php
+}
+add_action( 'wp_footer', 'bousai_weather_v1_footer', 35 );
+

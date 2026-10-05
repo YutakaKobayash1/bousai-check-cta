@@ -2,11 +2,10 @@
 /**
  * DISASTER-CTA-01: latest-disaster-info inline readiness CTA.
  *
- * v1.4.1-rc1 architecture:
- * - Layout owner creates a stable root-level slot:
- *   [data-bousai-slot="post-current-actions"]
+ * v1.4.2-rc1 architecture:
+ * - Layout owner retains the current/weather slot and the root-level sections.
  * - This component renders an inert <template> in wp_footer.
- * - Client-side code mounts only this CTA into that slot and keeps only itself at the slot tail.
+ * - Client-side code mounts only this CTA after primary recommendations, or before SNS/About.
  * - This component never reorders the current-information section, SNS share, or weather.
  */
 
@@ -73,7 +72,7 @@ final class Bousai_Check_CTA_Disaster_Info_Inline {
         }
 
         $main_plugin_file = dirname( __DIR__ ) . '/bousai-check-cta.php';
-        $version = class_exists( 'Bousai_Check_CTA' ) ? Bousai_Check_CTA::VERSION : '1.4.1-rc1';
+        $version = class_exists( 'Bousai_Check_CTA' ) ? Bousai_Check_CTA::VERSION : '1.4.2-rc1';
 
         /*
          * Reuse the existing core click tracker. /disaster-info/ remains excluded
@@ -107,8 +106,8 @@ final class Bousai_Check_CTA_Disaster_Info_Inline {
      * Render an inert template only.
      *
      * The template is intentionally outside .bousai-official-info and has no
-     * visual effect until the v1.4.1-rc1 client script mounts its first element into the
-     * stable post-current-actions slot owned by the disaster-info layout.
+     * visual effect until the v1.4.2-rc1 client script mounts its first element at the
+     * root-level lower anchor. No foreign section is moved.
      */
     public static function render_template() {
         if ( ! self::is_target_request() || ! self::is_surface_visible() ) {

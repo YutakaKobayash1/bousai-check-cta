@@ -1,4 +1,4 @@
-防災のまとめ 防災チェック導線 v1.4.1-rc1
+防災のまとめ 防災チェック導線 v1.4.2-rc1
 
 【目的】
 防災チェック固定ページへの4つの導線を、Cocoon本体を直接編集せずに追加します。
@@ -222,3 +222,15 @@ gtagがなくdataLayerが存在する場合はdataLayerへpushします。
 - 天気なしの期待順序：現在情報 → SNS共有 → 防災チェックCTA → 後続コンテンツ
 - SEO P0のroot-level slot配置、Priority View、Content Bridge、Social Growth、災害情報取得本体は変更しない
 - CTAの文言・デザイン・リンク先 /check/・impression/click計測は変更しない
+
+
+【v1.4.2-rc1：下部配置候補】
+- 正式担当：災害情報#2。旧CTAチャットはArchived / Read Only。
+- 下部：この状況で確認しておきたいこと → CTA → SNS → このページについて。
+- primaryなしではCTA→SNS→説明欄。存在しないprimaryは生成しない。
+- CTAは自nodeだけをroot直下へ配置。SNSは自nodeだけをCTA直後へ配置。
+- 天気は従来slotに維持し、SNS/CTAの存在を表示条件から外す。
+- SNS19 v1.4.7-rc1・weather22 placement-rc1とのセット変更が必要。
+- pageshow・遅延mount・再mountで重複しない。impressionはページ内で1回。
+- ステージング不使用。TinyFish禁止。本番plugin/snippet投入はユーザー実施。
+- 保存HTMLでの検証データは現在の災害情報として使わない。

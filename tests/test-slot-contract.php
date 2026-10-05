@@ -1,6 +1,6 @@
 <?php
 /**
- * Static architecture regression for DISASTER-CTA-01 v1.4.1-rc1.
+ * Static architecture regression for DISASTER-CTA-02 v1.4.2-rc1.
  * This intentionally verifies ownership boundaries as source invariants.
  */
 
@@ -32,14 +32,14 @@ must_contain( 'CTA renders inert template', $class, "add_action( 'wp_footer', ar
 must_not_contain( 'CTA does not rewrite shortcode output', $class, 'do_shortcode_tag' );
 must_not_contain( 'CTA has no HTML section parser', $class, 'insert_before_heading_section_close' );
 
-must_contain( 'CTA waits for stable slot', $js, '[data-bousai-slot="post-current-actions"]' );
+must_contain( 'CTA uses primary root anchor', $js, ':scope > .bousai-bridge-section-primary' );
 must_contain( 'CTA re-resolves footer template at mount time', $js, "document.getElementById(TEMPLATE_ID)" );
 must_contain( 'CTA waits across initial body assembly', $js, "waitForMountInputs.observe(document.body || document.documentElement" );
 must_contain( 'desktop button max width unchanged', $css, 'width: min(100%, 560px);' );
 must_contain( 'mobile button remains full width', $css, 'width: 100%;' );
-must_contain( 'CTA mounts only itself at slot tail', $js, 'slot.appendChild(cta)' );
-must_contain( 'CTA observes only slot child list', $js, 'slotTailObserver.observe(slot, {' );
-must_contain( 'CTA corrects only when not tail', $js, 'slot.lastElementChild !== cta' );
+must_contain( 'CTA moves only itself to lower root anchor', $js, 'root.insertBefore(cta, before)' );
+must_contain( 'CTA observes only root child list', $js, 'placementObserver.observe(root, { childList: true })' );
+must_contain( 'CTA corrects only its own placement', $js, 'primary.nextElementSibling !== cta' );
 must_contain( 'CTA disconnects initial wait observer', $js, 'waitForMountInputs.disconnect()' );
 must_not_contain( 'CTA no longer forces first-child ownership', $js, 'slot.insertBefore(cta, slot.firstChild)' );
 must_not_contain( 'CTA does not identify current section', $js, 'findCurrentSection' );
@@ -54,4 +54,4 @@ must_contain( 'SNS remains slot aware', $sns, 'findPostCurrentActionsSlot' );
 must_contain( 'SNS still moves only itself into slot', $sns, 'slot.appendChild(block)' );
 must_contain( 'SNS preserves legacy fallback', $sns, 'current.parentNode.insertBefore(block, current.nextSibling)' );
 
-echo "All v1.4.1-rc1 slot-contract tests passed.\n";
+echo "All v1.4.2-rc1 architecture checks passed.\n";
